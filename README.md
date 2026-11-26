@@ -65,12 +65,13 @@ Start the server, then open `dashboard/index.html` in a browser. It sends a samp
 
 ## Demo
 
-A local demo site for people, in `demo/`, with three pages: a full-screen **Map**, **How it works** and **Results**.
+A local demo site for people, in `demo/`, with four pages: a full-screen **Map**, a full-screen **Flood risk** page (the impact module), **How it works** and **Results**.
 
 - **Compare** shows the twin's forecast and the real weather side by side, on one colour scale, with synced pan and zoom. Five real windows match the five kinds of hidden test: monsoon onset, heavy rain, heatwave, cyclone and winter rain.
-- A panel over the maps gives each day's error **in numbers**: mean error, largest error and where, heavy rain found, and the comparison with "repeat yesterday". A clickable strip shows all 10 days.
+- A panel over the maps gives each day's **skill exactly as the organisers' kit scores it**: 1 − RMSE / min(RMSE of "repeat yesterday", RMSE of climatology), latitude-weighted, per channel, for all 6 channels and for the field on the map. The twin's RMSE is computed live in the browser; the climatology's RMSE ships with each window, made by `demo/make_windows.py` with the kit's own `rmse_lat` and `climatology`. A clickable strip shows all 10 days.
 - India's states and union territories are drawn as India shows them. Hovering names the state and reads the twin, real and difference values there.
 - Smooth colour fields, animated wind flow, slow-motion play, and a **Shock** view of what a shock changes.
+- **Flood risk** (`flood.html`), the impact module (`demo/flood.js`): a page that turns the twin's live rain forecast into flood alerts (watch, warning, severe) per cell and per state. Each cell's 3-day rain is compared with what is rare for that cell and month in 2005–2021, with a floor in mm. The twin's thresholds are lowered by lead day, because its forecast peaks weaken. Compare shows real against twin alerts, Shock shows which state's alert area a shock changes most, and four past floods (Uttarakhand 2013, Jammu and Kashmir 2014, Kerala 2018, Kolhapur 2019) are extra windows. Its "Past floods: scores" button scores the alerts of every window live. It is a rain-only hazard index: no rivers, dams, drainage or population.
 - Every forecast comes live from the twin server; nothing is pre-rendered. The text follows ASD-STE100 Simplified Technical English.
 
 ```bash
@@ -83,7 +84,7 @@ It runs fully offline. Everything it uses is bundled in `demo/`:
 - India, state and union-territory borders from the [DataMeet India community](https://github.com/datameet/maps) (CC BY 4.0);
 - neighbouring countries from [Natural Earth](https://www.naturalearthdata.com) (public domain).
 
-`demo/make_map.py` rebuilds the border files from those sources, and `demo/make_windows.py` rebuilds the sample windows from the training data.
+`demo/make_map.py` rebuilds the border files from those sources, and `demo/make_windows.py` rebuilds the sample windows from the training data (it needs the kit wheel, for the climatology RMSE). `demo/make_flood.py` rebuilds the flood thresholds in `demo/data/flood.js` (it runs the twin, about 3 minutes on a laptop CPU).
 
 ### Host it on Railway
 

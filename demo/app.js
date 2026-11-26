@@ -14,6 +14,7 @@ const FIELDS = {
   6: { name: "wind speed", unit: "m/s", conv: null, stops: "speed", digits: 1 },          // from u10 and v10
   5: { name: "water vapour", unit: "kg/m²", conv: v => v, stops: "tcwv", digits: 0 },
   4: { name: "sea-level pressure", unit: "hPa", conv: v => v / 100, stops: "msl", digits: 0 },
+  7: { name: "flood risk", unit: "alert level", units: "alert levels", conv: null, stops: "flood", digits: 0 },               // demo/flood.js
 };
 const STOPS = {   // [value in display units, [r, g, b, alpha]]
   rain: [[0, [255, 255, 255, 0]], [0.5, [214, 236, 255, 0]], [1, [214, 236, 255, 150]], [2.5, [160, 205, 255, 190]],
@@ -26,6 +27,8 @@ const STOPS = {   // [value in display units, [r, g, b, alpha]]
           [12, [60, 110, 190, 220]], [16, [110, 60, 170, 230]], [22, [190, 40, 120, 240]]],
   tcwv: [[0, [255, 255, 255, 0]], [10, [222, 240, 234, 140]], [25, [150, 212, 196, 190]], [40, [70, 172, 162, 210]],
          [55, [30, 122, 140, 222]], [70, [22, 72, 122, 232]]],
+  flood: [[0, [255, 255, 255, 0]], [0.5, [255, 255, 255, 0]], [0.55, [250, 210, 70, 205]], [1.5, [250, 210, 70, 205]],
+          [1.55, [240, 130, 40, 220]], [2.5, [240, 130, 40, 220]], [2.55, [190, 25, 45, 235]], [3, [190, 25, 45, 235]]],
   msl: [[985, [110, 40, 150, 225]], [995, [80, 110, 210, 210]], [1005, [190, 215, 240, 170]], [1010, [245, 245, 245, 120]],
         [1015, [250, 205, 150, 170]], [1025, [210, 100, 40, 215]]],
 };
@@ -36,7 +39,7 @@ const PANE_TITLE = { compare: ["Real weather", "Twin forecast"], forecast: ["Twi
 const COS = Array.from({ length: NLAT }, (_, i) => Math.cos((LAT0 + i) * Math.PI / 180));
 const COS_SUM = COS.reduce((a, b) => a + b, 0) * NLON;
 
-const state = { base: null, shocked: null, view: "compare", t: 0, playing: false, grids: [], stats: [], req: 0 };
+const state = { base: null, shocked: null, flood: {}, view: "compare", t: 0, playing: false, grids: [], stats: [], req: 0 };
 
 // ---- two maps that move together: the twin (left, or the only map) and the real weather (right) -----------
 function makeMap(id) {
@@ -115,12 +118,23 @@ function layer(day, ch) {                                           // one day o
   if (+ch === 6) return day[2].map((row, i) => row.map((u, j) => Math.hypot(u, day[3][i][j])));
   return day[ch].map(row => row.map(FIELDS[ch].conv));
 }
+function floodOf(src) {                                             // alert levels of every day of a source, cached per run
+  if (!state.flood[src]) {
+    const w = W(), days = src === "actual" ? w.actual : src === "persist" ? Array(DAYS).fill(w.init_states[2]) : state[src].rollout;
+    state.flood[src] = FloodRisk.levels(w.init_states.map(d => d[1]), days.map(d => d[1]), w.doy_sincos, src === "base" || src === "shocked");
+  }
+  return state.flood[src];
+}
+function view(src, k, ch) {                                         // day k of one field; src: actual, persist, base or shocked
+  if (+ch === 7) return floodOf(src)[k];
+  return layer(src === "actual" ? W().actual[k] : src === "persist" ? W().init_states[2] : state[src].rollout[k], ch);
+}
 const sub = (a, b) => a.map((row, i) => row.map((v, j) => v - b[i][j]));
 const lerp = (a, b, t) => a.map((row, i) => row.map((v, j) => v + (b[i][j] - v) * t));
 function grids(k, ch) {                                             // what each visible map shows on day k
-  if (state.view === "compare") return [layer(W().actual[k], ch), layer(state.base.rollout[k], ch)];   // real left, twin right
-  if (state.view === "forecast") return [layer((state.shocked || state.base).rollout[k], ch)];
-  return [sub(layer(state.shocked.rollout[k], ch), layer(state.base.rollout[k], ch))];
+  if (state.view === "compare") return [view("actual", k, ch), view("base", k, ch)];       // real left, twin right
+  if (state.view === "forecast") return [view(state.shocked ? "shocked" : "base", k, ch)];
+  return [sub(view("shocked", k, ch), view("base", k, ch))];
 }
 const wmean = g => { let s = 0; g.forEach((row, i) => row.forEach(v => { s += v * COS[i]; })); return s / COS_SUM; };
 const rmse = (a, b) => Math.sqrt(wmean(sub(a, b).map(r => r.map(v => v * v))));
@@ -162,6 +176,17 @@ function place(lat, lon) {                                          // a short p
   if (lon >= 77.5 && lat < 23) return "over the Bay of Bengal";
   return "over the Indian Ocean";
 }
+let CELL_STATES = null;
+function cellStates() {                                             // [[state, area], ...] for each cell, from 3 x 3 samples
+  return CELL_STATES ??= Array.from({ length: NLAT }, (_, i) => Array.from({ length: NLON }, (_, j) => {
+    const parts = {};
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      const st = stateAt(LAT0 + i + a / 3, LON0 + j + b / 3);
+      if (st) parts[st.name] = (parts[st.name] || 0) + COS[i] / 9;
+    }
+    return Object.entries(parts);
+  }));
+}
 const ll = (i, j) => [LAT0 + i, LON0 + j];
 const at = e => place(...ll(e.i, e.j));
 function extreme(g, sign) {                                         // sign 1: maximum, -1: minimum
@@ -170,119 +195,111 @@ function extreme(g, sign) {                                         // sign 1: m
   return { v: sign * best, i: pos[0], j: pos[1] };
 }
 const absmax = g => { const a = extreme(g, 1), b = extreme(g, -1); return Math.abs(a.v) >= Math.abs(b.v) ? a : b; };
-function compass(dlat, dlon) {
-  const a = (Math.atan2(dlat, dlon * Math.cos(22 * Math.PI / 180)) * 180 / Math.PI + 360) % 360;
-  return ["east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east"][Math.round(a / 45) % 8];
-}
-function centroid(g, thr) {
-  let s = 0, si = 0, sj = 0;
-  g.forEach((row, i) => row.forEach((v, j) => { if (v > thr) { s++; si += i; sj += j; } }));
-  return s ? [si / s, sj / s, s] : null;
-}
 const km = deg => Math.round(deg * 111 / 10) * 10;
-const KEY = { 1: [1, "heaviest rain"], 0: [1, "hottest area"], 6: [1, "strongest wind"], 5: [1, "most moist air"], 4: [-1, "lowest pressure"] };
 const fmt = (v, d) => v.toFixed(d).replace("-", "−");
 const signed = (v, d) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(d);
+const pct = x => Math.round(100 * x) + "%";
+const unitOf = (f, v) => (f.units && Math.abs(v) !== 1 ? f.units : f.unit);   // "1 alert level", "2 alert levels"
 
-// ---- per-day numbers: the error of the twin against the real weather, or the size of a shock ---------------
+// ---- per-day numbers: the kit's skill of the twin, the size of a shock, or flood alerts --------------------
+// The organisers' kit (monsoon_r1.scoring.skill_vs_best_ref), per channel: skill = 1 - RMSE / min(RMSE of "repeat
+// yesterday", RMSE of the long-term average), with the latitude-weighted RMSE of physical values (rmse below). The
+// long-term average's RMSE comes with each window, from the kit's own functions (make_windows.py); the twin's is live.
+const FIELD_CH = { 0: [0], 1: [1], 6: [2, 3], 5: [5], 4: [4] };    // the wind field is the kit's u10 and v10
+const RMSE_SCALE = { 4: 0.01 };                                     // Pa to hPa, as the field shows it
+const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+function kitStats(k, ch) {
+  const w = W(), out = state.base.rollout[k], real = w.actual[k], last = w.init_states[2];
+  const all = real.map((_, c) => {
+    const r = rmse(out[c], real[c]), rp = rmse(last[c], real[c]), rc = w.rmse_clim[k][c], best = Math.min(rp, rc);
+    return { c, r, best, ref: rp <= rc ? "“repeat yesterday”" : "long-term average", ss: best > 0 ? 1 - r / best : 0 };
+  });
+  const mine = FIELD_CH[ch].map(c => all[c]);
+  return { kind: "kit", mine, skill: mean(mine.map(x => x.ss)), skillAll: mean(all.map(x => x.ss)) };
+}
+function floodStats(k) {                                            // the twin's flood alerts against the real ones
+  const real = view("actual", k, 7), twin = view("base", k, 7), c = FloodRisk.compare(real, twin);
+  const p = FloodRisk.compare(real, view("persist", k, 7));
+  return { kind: "flood", c, p, area: c.twin / FloodRisk.landCells, skill: c.found != null && p.found != null ? c.found - p.found : 0,
+           top: FloodRisk.byState(twin, cellStates())[0], realTop: FloodRisk.byState(real, cellStates())[0] };
+}
+function stateShift(k) {                                            // the state whose alert area the shock changes most
+  const before = FloodRisk.byState(view("base", k, 7), cellStates()), after = {};
+  FloodRisk.byState(view("shocked", k, 7), cellStates()).forEach(s => { after[s.name] = s; });
+  const best = before.map(s => ({ name: s.name, before: s.share, after: after[s.name].share, d: Math.abs(after[s.name].area - s.area) }))
+                     .sort((x, y) => y.d - x.d)[0];                // by area, so tiny union territories do not lead
+  return best && best.d > 0 ? best : null;
+}
 function dayStats(k, ch) {
-  const base = layer(state.base.rollout[k], ch);
+  const base = view("base", k, ch);
   if (state.view === "shock") {
-    const d = sub(layer(state.shocked.rollout[k], ch), base), e = absmax(d), [a0, a1, o0, o1] = BOXES[$("shock").value];
+    const d = sub(view("shocked", k, ch), base), e = absmax(d), [a0, a1, o0, o1] = BOXES[$("shock").value];
     let far = 0;
     d.forEach((row, i) => row.forEach((v, j) => {
       if (Math.abs(v) < 0.2 * Math.abs(e.v)) return;
       const [la, lo] = ll(i, j);
       far = Math.max(far, Math.hypot(Math.max(a0 - la, 0, la - a1), Math.max(o0 - lo, 0, lo - o1)));
     }));
-    return { kind: "shock", e, far, size: Math.abs(e.v) };
+    return { kind: "shock", e, far, size: Math.abs(e.v), state: +ch === 7 ? stateShift(k) : null };
   }
-  const real = layer(W().actual[k], ch), pers = layer(W().init_states[2], ch), diff = sub(base, real);
-  const err = rmse(base, real), errP = rmse(pers, real);
-  const s = { kind: "error", e: absmax(diff), mae: wmean(diff.map(r => r.map(Math.abs))), skill: errP > 0 ? 1 - err / errP : 0 };
-  if (+ch === 1) {
-    let hit = 0, real10 = 0;
-    real.forEach((row, i) => row.forEach((v, j) => { if (v > 10) { real10++; if (base[i][j] > 10) hit++; } }));
-    s.found = real10 ? hit / real10 : null;
-  }
-  return s;
+  return +ch === 7 ? floodStats(k) : kitStats(k, ch);
 }
 
+const shareText = s => (s && s.share > 0 ? `${s.name} (${pct(s.share)} of its area)` : "no state");
+function floodCaption(k) {
+  const s = state.stats[k];
+  if (state.view === "forecast") return "An alert compares the rain of 3 days with the rain that is rare for that place and month. "
+                                      + "Levels: watch, warning, severe.";
+  return `Real: the largest alert area is in ${shareText(s.realTop)}. Twin: ${shareText(s.top)}. `
+       + (s.p.found != null ? `“Repeat yesterday” finds ${pct(s.p.found)} of the real alerts.` : "");
+}
+function floodHeadline(k) {
+  const s = state.stats[k];
+  if (state.view === "forecast") {
+    const g = FloodRisk.byState(grids(k, 7)[0], cellStates())[0];
+    return g && g.share > 0 ? `Flood alert in ${shareText(g)}.` : "No flood alert on this day.";
+  }
+  if (!s.c.real) return s.c.twin ? `No real flood alert on this day. The twin gives an alert on ${s.c.twin} cells.` : "No flood alert on this day. The twin agrees.";
+  return `The twin finds ${pct(s.c.found)} of the real flood-alert area.`;
+}
 function captionText(k, ch) {
-  const f = FIELDS[ch], u = " " + f.unit, n = v => fmt(v, f.digits), s = state.stats[k];
+  if (+ch === 7 && state.view !== "shock") return floodCaption(k);
+  const f = FIELDS[ch], n = v => fmt(v, f.digits), s = state.stats[k];
   if (state.view === "shock") {
     if (s.size < Math.pow(10, -f.digits)) return `The shock does not change the ${f.name} on this day.`;
-    return `The shock ${s.e.v > 0 ? "increases" : "decreases"} the ${f.name} by up to ${n(Math.abs(s.e.v))}${u} ${at(s.e)}. `
+    return `The shock ${s.e.v > 0 ? "increases" : "decreases"} the ${f.name} by up to ${n(Math.abs(s.e.v))} ${unitOf(f, s.e.v)} ${at(s.e)}. `
          + (s.far < 0.5 ? "The effect stays in the shock box." : `The effect is now ${km(s.far)} km from the shock box.`);
   }
-  const g = grids(k, ch), [sign, what] = KEY[ch], tw = extreme(g[state.view === "compare" ? 1 : 0], sign);
-  if (state.view === "compare") {
-    const re = extreme(g[0], sign), d = Math.hypot(tw.i - re.i, tw.j - re.j);
-    return `Twin: the ${what} is ${n(tw.v)}${u} ${at(tw)}. Real: ${n(re.v)}${u} ${at(re)}`
-         + (d >= 1 ? `, ${km(d)} km ${compass(re.i - tw.i, re.j - tw.j)} of the twin's position.` : ", at the same position.");
-  }
-  let t = `The ${what} is ${n(tw.v)}${u} ${at(tw)}.`;
-  if (+ch === 1 && k > 0 && tw.v >= 20) {                          // follow the core: cells above half the peak
-    const prev = grids(k - 1, ch)[0], pe = extreme(prev, 1), a = centroid(g[0], tw.v / 2), b = pe.v >= 20 && centroid(prev, pe.v / 2);
-    const d = a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : 0;
-    if (d >= 1 && d <= 6) t += ` The core of the heaviest rain moves ${km(d)} km ${compass(a[0] - b[0], a[1] - b[1])}.`;
-  }
-  if (+ch === 4 && tw.v < 1000) t += " Pressure this low can show a cyclone or a strong low.";
-  return t;
+  return "The score uses the method of the organisers' kit, for all 6 fields. The error is the RMSE over the map. "
+       + "The best simple forecast is the better of “repeat yesterday” and the long-term average.";
 }
 
-// ---- the headline: the difference in one plain sentence -----------------------------------------------------
-const RELATIVE = { 1: true, 6: true, 5: true };                     // rain, wind and moisture: compare in percent
+// ---- the headline: the day in one plain sentence -----------------------------------------------------------
 function headline(k, ch) {
-  const f = FIELDS[ch], g = grids(k, ch), [sign, what] = KEY[ch];
+  if (+ch === 7 && state.view !== "shock") return floodHeadline(k);
+  const f = FIELDS[ch];
   if (state.view === "shock") {
     const s = state.stats[k];
     return s.size < Math.pow(10, -f.digits) ? "The shock has no effect on this day."
-         : `The shock ${s.e.v > 0 ? "adds" : "removes"} up to ${fmt(Math.abs(s.e.v), f.digits)} ${f.unit} of ${f.name} ${at(s.e)}.`;
+         : `The shock ${s.e.v > 0 ? "adds" : "removes"} up to ${fmt(Math.abs(s.e.v), f.digits)} ${unitOf(f, s.e.v)} of ${f.name} ${at(s.e)}.`;
   }
-  if (state.view !== "compare") { const e = extreme(g[0], sign); return `The ${what} is ${fmt(e.v, f.digits)} ${f.unit} ${at(e)}.`; }
-  const re = extreme(g[0], sign), tw = extreme(g[1], sign), d = Math.hypot(tw.i - re.i, tw.j - re.j);
-  let h = d >= 1 ? `The twin puts the ${what} ${km(d)} km ${compass(tw.i - re.i, tw.j - re.j)} of the real position.`
-                 : `The twin puts the ${what} in the right place.`;
-  if (RELATIVE[ch] && Math.abs(re.v) > 1e-6) {
-    const pct = Math.round(100 * (tw.v - re.v) / Math.abs(re.v));
-    h += Math.abs(pct) < 5 ? " Its size is almost correct." : ` It is ${Math.abs(pct)}% ${pct > 0 ? "stronger" : "weaker"}.`;
-  } else {
-    const dv = tw.v - re.v;
-    h += Math.abs(dv) < Math.pow(10, -f.digits) ? " Its value is correct." : ` It is ${fmt(Math.abs(dv), f.digits)} ${f.unit} too ${dv > 0 ? "high" : "low"}.`;
-  }
-  return h;
+  const x = state.stats[k].skillAll, p = Math.round(100 * Math.abs(x));
+  return `Skill ${signed(x, 2)}: ` + (p < 2 ? "the twin is as good as the best simple forecast."
+       : `the twin's error is ${p}% ${x > 0 ? "smaller" : "larger"} than the best simple forecast.`);
 }
 
-// ---- markers: where the peak really was, where the twin put it, and the largest error ------------------------
-function pin(pane, e, label, tone, side = "right") {                // side: where the label sits next to its dot
+// ---- marker: the largest change from a shock -----------------------------------------------------------------
+function pin(pane, e, label) {
   const pos = ll(e.i, e.j);
-  L.circleMarker(pos, { pane: "marks", radius: 6, color: "#fff", weight: 2, fillColor: tone === "err" ? "#b3261e" : "#1d1d1f",
-                        fillOpacity: 1, interactive: false }).addTo(pane.marks);
+  L.circleMarker(pos, { pane: "marks", radius: 6, color: "#fff", weight: 2, fillColor: "#b3261e", fillOpacity: 1, interactive: false }).addTo(pane.marks);
   L.marker(pos, { pane: "marks", interactive: false, keyboard: false, icon: L.divIcon({ className: "pinbox", iconSize: [0, 0],
-    html: `<span class="pin ${tone || ""} ${side}">${label}</span>` }) }).addTo(pane.marks);
+    html: `<span class="pin err">${label}</span>` }) }).addTo(pane.marks);
 }
 function updateMarks(k) {
   P.forEach(p => p.marks.clearLayers());
-  if (!state.base) return;
-  const ch = CH(), f = FIELDS[ch], g = grids(k, ch), [sign] = KEY[ch], v = x => `${fmt(x, f.digits)} ${f.unit}`;
-  if (state.view === "compare") {
-    const re = extreme(g[0], sign), tw = extreme(g[1], sign), err = state.stats[k].e;
-    pin(P[0], re, `<b>Real peak</b> ${v(re.v)}`);
-    if (Math.hypot(tw.i - re.i, tw.j - re.j) >= 1) {                // the miss, drawn on the twin's map
-      L.polyline([ll(re.i, re.j), ll(tw.i, tw.j)], { pane: "marks", color: "#1d1d1f", weight: 1.5, dashArray: "4 6", interactive: false }).addTo(P[1].marks);
-      L.circleMarker(ll(re.i, re.j), { pane: "marks", radius: 9, color: "#1d1d1f", weight: 1.5, dashArray: "3 3", fill: false, interactive: false }).addTo(P[1].marks);
-    }
-    const away = tw.j < re.j ? "left" : "right";                    // keep the miss line clear of the labels
-    pin(P[1], tw, `<b>Twin peak</b> ${v(tw.v)}`, "", away);
-    pin(P[1], err, `<b>Largest error</b> ${signed(err.v, f.digits)} ${f.unit}`, "err", err.j < re.j ? "left" : "right");
-  } else if (state.view === "shock") {
-    const s = state.stats[k];
-    if (s.size >= Math.pow(10, -f.digits)) pin(P[0], s.e, `<b>Largest change</b> ${signed(s.e.v, f.digits)} ${f.unit}`, "err");
-  } else {
-    const e = extreme(g[0], sign);
-    pin(P[0], e, `<b>Peak</b> ${v(e.v)}`);
-  }
+  if (!state.base || state.view !== "shock") return;
+  const f = FIELDS[CH()], s = state.stats[k];
+  if (s.size >= Math.pow(10, -f.digits)) pin(P[0], s.e, `<b>Largest change</b> ${signed(s.e.v, f.digits)} ${unitOf(f, s.e.v)}`);
 }
 
 // ---- drawing -----------------------------------------------------------------------------------------------
@@ -309,6 +326,7 @@ function legend(stops, ch, diff) {
   const t = v => (Math.abs(v) >= 100 ? fmt(v, 0) : fmt(v, Math.abs(v) < 10 ? 1 : 0));
   $("legtitle").textContent = (diff ? "Change from the shock: less ← → more" : f.name[0].toUpperCase() + f.name.slice(1)) + ` · ${f.unit}`;
   $("lo").textContent = t(lo); $("hi").textContent = t(hi);
+  if (+ch === 7 && !diff) { $("lo").textContent = "None"; $("hi").textContent = "Severe"; }
 }
 
 function windData(day) {
@@ -335,15 +353,18 @@ const dateText = iso => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", 
 function buildTimeline() {
   const ch = CH(), f = FIELDS[ch], shock = state.view === "shock";
   state.stats = Array.from({ length: DAYS }, (_, k) => dayStats(k, ch));
-  const vals = state.stats.map(s => (shock ? s.size : s.mae)), top = Math.max(1e-6, ...vals);
-  $("tlhead").textContent = shock ? `Largest change from the shock, by day · ${f.unit}` : `Mean error of the twin, by day · ${f.unit}`;
+  const flood = +ch === 7 && !shock, kit = !flood && !shock;
+  const vals = state.stats.map(s => (flood ? 100 * s.area : shock ? s.size : s.skillAll)), top = Math.max(1e-6, ...vals);
+  $("tlhead").textContent = flood ? "Land with a flood alert in the twin, by day · %"
+    : shock ? `Largest change from the shock, by day · ${f.unit}` : "Skill by day, all 6 fields · above 0: better than the best simple forecast";
   $("timeline").replaceChildren(...state.stats.map((s, k) => {
     const v = vals[k], b = document.createElement("button");
-    b.className = "chip" + (!shock && s.skill < 0 ? " worse" : ""); b.dataset.k = k;
-    b.title = shock ? `Day ${k + 1}: largest change ${fmt(v, f.digits)} ${f.unit}`
-                    : `Day ${k + 1}: mean error ${fmt(v, 1)} ${f.unit}; ${signed(100 * s.skill, 0)}% against “repeat yesterday”`;
-    b.innerHTML = `<span class="track"><span class="bar" style="height:${Math.max(3, 28 * v / top)}px"></span></span>`
-      + `<span class="val">${fmt(v, shock ? f.digits : 1)}</span><span class="d">Day ${k + 1}</span>`;
+    b.className = "chip" + ((kit ? s.skillAll : flood ? s.skill : 0) < 0 ? " worse" : ""); b.dataset.k = k;
+    b.title = flood ? `Day ${k + 1}: flood alert on ${fmt(v, 0)}% of the land` + (s.c.found != null ? `; ${pct(s.c.found)} of the real alerts found` : "")
+            : shock ? `Day ${k + 1}: largest change ${fmt(v, f.digits)} ${f.unit}`
+                    : `Day ${k + 1}: skill ${signed(v, 2)}, all 6 fields, as the organisers' kit calculates it`;
+    b.innerHTML = `<span class="track"><span class="bar" style="height:${Math.max(3, 28 * Math.max(v, 0) / top)}px"></span></span>`
+      + `<span class="val">${kit ? signed(v, 2) : fmt(v, shock ? f.digits : 1)}</span><span class="d">Day ${k + 1}</span>`;
     b.onclick = () => goTo(k, Math.abs(k - state.t) <= 1);
     return b;
   }));
@@ -357,14 +378,24 @@ function renderPanel(k) {
   $("headline").textContent = headline(k, ch);
   $("captext").textContent = captionText(k, ch);
   if (s.kind === "shock") {
-    $("stats").innerHTML = stat("Largest change", `${signed(s.e.v, d)} ${u}`, at(s.e))
-      + stat("Reach", s.far < 0.5 ? "In the box" : `${km(s.far)} km`, "from the shock box");
+    $("stats").innerHTML = (s.size < Math.pow(10, -d) ? stat("Largest change", "None", "on this day")   // no reach without a change
+      : stat("Largest change", `${signed(s.e.v, d)} ${unitOf(f, s.e.v)}`, at(s.e))
+        + stat("Reach", s.far < 0.5 ? "In the box" : `${km(s.far)} km`, "from the shock box"))
+      + (s.state ? stat("Largest change of alert area", `${pct(s.state.before)} → ${pct(s.state.after)}`, s.state.name) : "");
+  } else if (s.kind === "flood") {
+    const c = s.c, p = s.p;
+    $("stats").innerHTML = stat("Land with an alert", pct(s.area), "twin, watch or higher")
+      + stat("Real alerts found", c.real ? pct(c.found) : "No real alert", c.real ? `${c.hits} of ${c.real} cells` : "")
+      + stat("False alarms", c.twin ? pct(c.falseAlarm) : "None", "twin alerts without a real alert", c.twin && c.falseAlarm > 0.5 ? "hot" : "")
+      + (c.real ? stat("Against “repeat yesterday”", `${signed(100 * (c.found - p.found), 0)} points`, `it finds ${pct(p.found)}`,
+                       c.found >= p.found ? "good" : "bad") : "");
   } else {
-    $("stats").innerHTML = stat("Mean error", `${fmt(s.mae, Math.max(d, 1))} ${u}`, "twin against real")
-      + stat("Largest error", `${signed(s.e.v, d)} ${u}`, `${s.e.v > 0 ? "too high" : "too low"} ${at(s.e)}`, "hot")
-      + (s.found != null ? stat("Heavy rain found", `${Math.round(100 * s.found)}%`, "real cells above 10 mm/day") : "")
-      + stat("Against “repeat yesterday”", `${signed(100 * s.skill, 0)}%`, s.skill >= 0 ? "smaller error" : "larger error",
-             s.skill >= 0 ? "good" : "bad");
+    const val = key => s.mine.map(x => fmt(x[key] * (RMSE_SCALE[ch] || 1), Math.max(d, 1))).join(" / ") + " " + u;
+    const wind = s.mine.length > 1, tone = x => (x >= 0 ? "good" : "bad");
+    $("stats").innerHTML = stat("Skill, all 6 fields", signed(s.skillAll, 2), "the organisers' score", tone(s.skillAll))
+      + stat(`Skill, ${f.name}`, signed(s.skill, 2), wind ? "mean of u10 and v10" : "", tone(s.skill))
+      + stat("Twin RMSE", val("r"), wind ? "u10 / v10" : "")
+      + stat("Best simple forecast RMSE", val("best"), wind ? "u10 / v10" : s.mine[0].ref);
   }
   document.querySelectorAll("#timeline .chip").forEach(c => c.setAttribute("aria-current", +c.dataset.k === k ? "true" : "false"));
 }
@@ -405,7 +436,7 @@ async function run() {
     const base = await simulate(w, null);
     const shocked = name === "none" ? null : await simulate(w, shockDelta(name, w.init_states[2]));
     if (req !== state.req) return;                                  // a newer request started meanwhile
-    Object.assign(state, { base, shocked });
+    Object.assign(state, { base, shocked, flood: {} });
     $("status").textContent = `Live from the twin · ${base.inference_ms.toFixed(0)} ms`;
     P.forEach(p => {
       if (name === "none") p.box.remove();
@@ -448,6 +479,7 @@ const stepBy = n => goTo(aim + n, true);             // every click counts, even
 
 // ---- controls and the hover tooltip ------------------------------------------------------------------------
 WINDOWS.forEach((w, i) => $("win").add(new Option(w.label, i)));
+if (document.body.dataset.page === "flood") $("win").value = WINDOWS.findIndex(w => w.label.startsWith("Flood:"));
 $("win").onchange = $("shock").onchange = () => run();
 $("field").onchange = () => { buildTimeline(); draw(state.t); setDay(Math.floor(state.t), true); };
 $("wind").onchange = () => updateWind(Math.floor(state.t));
@@ -473,7 +505,9 @@ P.forEach(p => {
     const { lat, lng } = e.latlng, f = FIELDS[CH()], g = state.grids, st = stateAt(lat, lng);
     highlight(st && st.name);
     if (!g.length || lat < 6 || lat > 38 || lng < 65 || lng > 101) { tip.hidden = true; return; }
-    const v = g.map(x => sample(x, lat, lng)), row = (name, x, sgn) => `<div class="row"><span>${name}</span><b>${sgn ? signed(x, f.digits) : fmt(x, f.digits)}</b></div>`;
+    const flood = f === FIELDS[7], i = Math.round(lat - LAT0), j = Math.round(lng - LON0);
+    const v = g.map(x => (flood ? Math.round(x[Math.min(NLAT - 1, Math.max(0, i))][Math.min(NLON - 1, Math.max(0, j))]) : sample(x, lat, lng)));
+    const row = (name, x, sgn) => `<div class="row"><span>${name}</span><b>${sgn ? signed(x, f.digits) : flood ? FloodRisk.NAMES[x] : fmt(x, f.digits)}</b></div>`;
     const c = st ? null : country(lat, lng);
     tip.innerHTML = (st ? `<div class="state">${st.name}<span>${st.kind}</span></div>`
                         : c ? `<div class="state">${c === "People's Republic of China" ? "China" : c}</div>` : "")

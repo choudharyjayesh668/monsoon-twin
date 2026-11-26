@@ -42,6 +42,9 @@ select:hover { border-color: #c7c7cc; }
 input[type=range] { accent-color: var(--ink); width: 150px; }
 .daylabel { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 92px; text-align: center; }
 .toolbar .check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); font-weight: 400; min-height: 38px; }
+.scores { font: inherit; font-size: 14px; min-height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line);
+          background: var(--bg); color: var(--ink); cursor: pointer; transition: border-color .2s var(--ease); }
+.scores:hover { border-color: #c7c7cc; }
 .status { font-size: 12px; color: var(--muted); margin-left: auto; margin-right: 16px; font-variant-numeric: tabular-nums; }
 
 .mapwrap { flex: 1; position: relative; display: grid; grid-template-columns: 1fr; min-height: 0; }
@@ -81,7 +84,7 @@ input[type=range] { accent-color: var(--ink); width: 150px; }
 .stat.hot { background: #fdeceb; border-radius: 12px; padding: 4px 10px 6px; margin: -4px 0; }
 .stat.hot .v { color: #b3261e; }
 
-/* map markers: the real peak, the twin peak and the largest error */
+/* map marker: the largest change from a shock */
 .pinbox { overflow: visible; }
 .pin { position: absolute; top: -12px; left: 12px; white-space: nowrap; font-size: 12px; line-height: 1; padding: 6px 9px;
        border-radius: 999px; background: #1d1d1f; color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); font-variant-numeric: tabular-nums; }
@@ -113,6 +116,15 @@ input[type=range] { accent-color: var(--ink); width: 150px; }
 .tip .row { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .tip .row b { font-weight: 600; }
 .tip .unit { font-size: 11px; color: var(--muted); text-align: right; }
+
+/* the flood scores dialog */
+dialog { width: min(1100px, calc(100% - 32px)); max-height: calc(100dvh - 48px); border: 0; border-radius: 18px; padding: 24px 28px;
+         color: var(--ink); background: var(--bg); box-shadow: 0 24px 80px rgba(0, 0, 0, .25); }
+dialog::backdrop { background: rgba(0, 0, 0, .3); }
+dialog h2 { font-size: 22px; letter-spacing: -0.02em; margin: 0 40px 8px 0; }
+dialog .close { position: absolute; top: 14px; right: 16px; width: 36px; height: 36px; border-radius: 50%; border: 0;
+                background: var(--soft); color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; }
+.tablewrap { overflow-x: auto; }
 
 /* text pages */
 .page { padding: 48px 48px 64px; max-width: 1600px; margin: 0 auto; }
