@@ -7,7 +7,14 @@ const SERVER = new URLSearchParams(location.search).get("server")
 const $ = id => document.getElementById(id);
 const NLAT = 32, NLON = 36, LAT0 = 6.5, LON0 = 65.5, DAYS = 10, GLIDE_MS = 1400;
 const BOUNDS = [[6, 65], [38, 101]];                               // outer edges of the 1-degree cells
-const BOXES = { warm_ocean: [8, 20, 82, 94], monsoon_stall: [8, 20, 65, 75], arabian_heat: [8, 20, 65, 75] };
+// A change to the last starting day: a box [lat0, lat1, lon0, lon1] (cell centres inside count, as in the kit) and
+// what changes in it: t2m (K) and msl (Pa) are added; tcwv and wind are fractions of the value there.
+const PRESETS = {                                                   // the organisers' two shocks, plus the +2.5 °C test
+  warm_ocean: { box: [8, 20, 82, 94], t2m: 3, tcwv: 0.15 },
+  monsoon_stall: { box: [8, 20, 65, 75], wind: -0.4 },
+  arabian_heat: { box: [8, 20, 65, 75], t2m: 2.5 },
+};
+const PAGE = document.body.dataset.page || "forecast";             // forecast (index.html), twin or flood
 const FIELDS = {
   1: { name: "rain", unit: "mm/day", conv: v => v, stops: "rain", digits: 0 },
   0: { name: "temperature", unit: "°C", conv: v => v - 273.15, stops: "temp", digits: 1 },
@@ -34,14 +41,18 @@ const STOPS = {   // [value in display units, [r, g, b, alpha]]
 };
 const diverging = m => [[-m, [33, 102, 172, 235]], [-m / 2, [120, 175, 215, 205]], [-m * 0.06, [255, 255, 255, 0]],
                         [m * 0.06, [255, 255, 255, 0]], [m / 2, [240, 150, 120, 205]], [m, [178, 24, 43, 235]]];
-const VIEW_TITLE = { compare: "Twin against real weather", forecast: "Twin forecast", shock: "Shock effect" };
-const PANE_TITLE = { compare: ["Real weather", "Twin forecast"], forecast: ["Twin forecast"], shock: ["Shock effect: with minus without"] };
+const VIEW_TITLE = { compare: "Twin against real weather", forecast: "Twin forecast", shock: "Difference", universes: "Universes" };
+const PANE_TITLE = { compare: ["Real weather", "Twin forecast"], forecast: ["Twin forecast"],
+                     shock: ["Difference: with the change minus without"], universes: ["Universe A: as it was", "Universe B: with the change"] };
+const WORD = PAGE === "twin" ? "change" : "shock";
+const TWO = { compare: true, universes: true };                     // views with 2 maps side by side
+const isDiff = () => state.view === "shock" || state.view === "universes";   // views about a change, not about skill
 const COS = Array.from({ length: NLAT }, (_, i) => Math.cos((LAT0 + i) * Math.PI / 180));
 const COS_SUM = COS.reduce((a, b) => a + b, 0) * NLON;
 
-// The flood page shows only the twin: no Compare view with the real weather.
-const HOME = document.body.dataset.page === "flood" ? "forecast" : "compare";
-const state = { base: null, shocked: null, flood: {}, view: HOME, t: 0, playing: false, grids: [], stats: [], req: 0 };
+// The forecast page compares with the real weather; the twin and flood pages show only the twin.
+const HOME = { forecast: "compare", twin: "universes", flood: "forecast" }[PAGE];
+const state = { base: null, shocked: null, spec: null, flood: {}, view: HOME, t: 0, playing: false, grids: [], stats: [], req: 0 };
 
 // ---- two maps that move together: the twin (left, or the only map) and the real weather (right) -----------
 function makeMap(id) {
@@ -65,6 +76,7 @@ function makeMap(id) {
 const P = ["mapA", "mapB"].map(makeMap);
 L.control.zoom({ position: "topright" }).addTo(P[1].map);
 L.control.zoom({ position: "topright" }).addTo(P[0].map).getContainer().classList.add("only-one");
+P.forEach(p => p.map.on("click", e => { if (typeof Builder !== "undefined") Builder.click(e.latlng); }));   // twin page
 let syncing = false;
 P.forEach(src => src.map.on("move", () => {
   if (syncing) return;
@@ -73,7 +85,7 @@ P.forEach(src => src.map.on("move", () => {
   syncing = false;
 }));
 function layout() {
-  $("wrap").className = "mapwrap " + (state.view === "compare" ? "two" : "one");
+  $("wrap").className = "mapwrap " + (TWO[state.view] ? "two" : "one");
   P.forEach(p => p.map.invalidateSize());
   PANE_TITLE[state.view].forEach((t, n) => { $("title" + n).textContent = t; });
 }
@@ -135,6 +147,7 @@ const sub = (a, b) => a.map((row, i) => row.map((v, j) => v - b[i][j]));
 const lerp = (a, b, t) => a.map((row, i) => row.map((v, j) => v + (b[i][j] - v) * t));
 function grids(k, ch) {                                             // what each visible map shows on day k
   if (state.view === "compare") return [view("actual", k, ch), view("base", k, ch)];       // real left, twin right
+  if (state.view === "universes") return [view("base", k, ch), view("shocked", k, ch)];    // without left, with right
   if (state.view === "forecast") return [view(state.shocked ? "shocked" : "base", k, ch)];
   return [sub(view("shocked", k, ch), view("base", k, ch))];
 }
@@ -232,15 +245,15 @@ function stateShift(k) {                                            // the state
 }
 function dayStats(k, ch) {
   const base = view("base", k, ch);
-  if (state.view === "shock") {
-    const d = sub(view("shocked", k, ch), base), e = absmax(d), [a0, a1, o0, o1] = BOXES[$("shock").value];
+  if (isDiff()) {
+    const shocked = view("shocked", k, ch), d = sub(shocked, base), e = absmax(d), [a0, a1, o0, o1] = state.spec.box;
     let far = 0;
     d.forEach((row, i) => row.forEach((v, j) => {
       if (Math.abs(v) < 0.2 * Math.abs(e.v)) return;
       const [la, lo] = ll(i, j);
       far = Math.max(far, Math.hypot(Math.max(a0 - la, 0, la - a1), Math.max(o0 - lo, 0, lo - o1)));
     }));
-    return { kind: "shock", e, far, size: Math.abs(e.v), state: +ch === 7 ? stateShift(k) : null,
+    return { kind: "shock", e, far, size: Math.abs(e.v), a: base[e.i][e.j], b: shocked[e.i][e.j], state: +ch === 7 ? stateShift(k) : null,
              people: +ch === 7 ? [FloodRisk.people(base), FloodRisk.people(view("shocked", k, ch))] : null };
   }
   return +ch === 7 ? floodStats(k) : kitStats(k, ch);
@@ -272,12 +285,12 @@ function floodHeadline(k) {
        + `About ${persons(state.stats[k].people)} people live in the alert area.`;
 }
 function captionText(k, ch) {
-  if (+ch === 7 && state.view !== "shock") return floodCaption(k);
+  if (+ch === 7 && !isDiff()) return floodCaption(k);
   const f = FIELDS[ch], n = v => fmt(v, f.digits), s = state.stats[k];
-  if (state.view === "shock") {
-    if (s.size < Math.pow(10, -f.digits)) return `The shock does not change the ${f.name} on this day.`;
-    return `The shock ${s.e.v > 0 ? "increases" : "decreases"} the ${f.name} by up to ${n(Math.abs(s.e.v))} ${unitOf(f, s.e.v)} ${at(s.e)}. `
-         + (s.far < 0.5 ? "The effect stays in the shock box." : `The effect is now ${km(s.far)} km from the shock box.`);
+  if (isDiff()) {
+    if (s.size < Math.pow(10, -f.digits)) return `The ${WORD} does not change the ${f.name} on this day.`;
+    return `The ${WORD} ${s.e.v > 0 ? "increases" : "decreases"} the ${f.name} by up to ${n(Math.abs(s.e.v))} ${unitOf(f, s.e.v)} ${at(s.e)}. `
+         + (s.far < 0.5 ? `The effect stays in the box.` : `The effect is now ${km(s.far)} km from the box.`);
   }
   return "The score uses the method of the organisers' kit, for all 6 fields. The error is the RMSE over the map. "
        + "The best simple forecast is the better of “repeat yesterday” and the long-term average.";
@@ -285,14 +298,14 @@ function captionText(k, ch) {
 
 // ---- the headline: the day in one plain sentence -----------------------------------------------------------
 function headline(k, ch) {
-  if (+ch === 7 && state.view !== "shock") return floodHeadline(k);
+  if (+ch === 7 && !isDiff()) return floodHeadline(k);
   const f = FIELDS[ch];
-  if (state.view === "shock") {
+  if (isDiff()) {
     const s = state.stats[k], t = s.state;
     if (+ch === 7) return t ? `The shock ${t.after > t.before ? "raises" : "lowers"} the flood-alert area of ${t.name} `
                               + `${when(k)}: ${pct(t.before)} → ${pct(t.after)} of the state.` : `The shock does not change the flood alerts of any state ${when(k)}.`;
-    return s.size < Math.pow(10, -f.digits) ? "The shock has no effect on this day."
-         : `The shock ${s.e.v > 0 ? "adds" : "removes"} up to ${fmt(Math.abs(s.e.v), f.digits)} ${unitOf(f, s.e.v)} of ${f.name} ${at(s.e)}.`;
+    return s.size < Math.pow(10, -f.digits) ? `The ${WORD} has no effect on this day.`
+         : `The ${WORD} ${s.e.v > 0 ? "adds" : "removes"} up to ${fmt(Math.abs(s.e.v), f.digits)} ${unitOf(f, s.e.v)} of ${f.name} ${at(s.e)}.`;
   }
   const x = state.stats[k].skillAll, p = Math.round(100 * Math.abs(x));
   return `Skill ${signed(x, 2)}: ` + (p < 2 ? "the twin is as good as the best simple forecast."
@@ -308,9 +321,9 @@ function pin(pane, e, label) {
 }
 function updateMarks(k) {
   P.forEach(p => p.marks.clearLayers());
-  if (!state.base || state.view !== "shock") return;
-  const f = FIELDS[CH()], s = state.stats[k];
-  if (s.size >= Math.pow(10, -f.digits)) pin(P[0], s.e, `<b>Largest change</b> ${signed(s.e.v, f.digits)} ${unitOf(f, s.e.v)}`);
+  if (!state.base || !isDiff()) return;
+  const f = FIELDS[CH()], s = state.stats[k], pane = P[state.view === "universes" ? 1 : 0];   // on the changed universe
+  if (s.size >= Math.pow(10, -f.digits)) pin(pane, s.e, `<b>Largest change</b> ${signed(s.e.v, f.digits)} ${unitOf(f, s.e.v)}`);
 }
 
 // ---- drawing -----------------------------------------------------------------------------------------------
@@ -356,26 +369,30 @@ function setWind(pane, day) {
 }
 function updateWind(k) {
   if (state.view === "compare") { setWind(P[0], W().actual[k]); setWind(P[1], state.base.rollout[k]); return; }
+  if (state.view === "universes") { setWind(P[0], state.base.rollout[k]); setWind(P[1], state.shocked.rollout[k]); return; }
   setWind(P[0], (state.view === "forecast" ? (state.shocked || state.base) : state.shocked).rollout[k]); setWind(P[1], null);
 }
 
 // ---- the numbers overlay: one day in detail, and a strip of all 10 days ------------------------------------
 const dateText = iso => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 function buildTimeline() {
-  const ch = CH(), f = FIELDS[ch], shock = state.view === "shock";
+  const ch = CH(), f = FIELDS[ch], shock = isDiff(), reach = shock && PAGE === "twin";
   state.stats = Array.from({ length: DAYS }, (_, k) => dayStats(k, ch));
   const flood = +ch === 7 && !shock, kit = !flood && !shock;
-  const vals = state.stats.map(s => (flood ? s.states.length : shock ? s.size : s.skillAll)), top = Math.max(1e-6, ...vals);
+  const vals = state.stats.map(s => (flood ? s.states.length : reach ? (s.size < Math.pow(10, -f.digits) ? 0 : km(s.far))
+                                     : shock ? s.size : s.skillAll)), top = Math.max(1e-6, ...vals);
   $("tlhead").textContent = flood ? "States under a flood alert in the twin, by day"
+    : reach ? `How far the effect has spread from the box, by day · km (${f.name})`
     : shock ? `Largest change from the shock, by day · ${f.unit}` : "Skill by day, all 6 fields · above 0: better than the best simple forecast";
   $("timeline").replaceChildren(...state.stats.map((s, k) => {
     const v = vals[k], b = document.createElement("button");
     b.className = "chip" + (kit && s.skillAll < 0 ? " worse" : ""); b.dataset.k = k;
     b.title = flood ? `Day ${k + 1}: ${describe(s.states)}`
+            : reach ? `Day ${k + 1}: the effect is ${v} km from the box`
             : shock ? `Day ${k + 1}: largest change ${fmt(v, f.digits)} ${f.unit}`
                     : `Day ${k + 1}: skill ${signed(v, 2)}, all 6 fields, as the organisers' kit calculates it`;
     b.innerHTML = `<span class="track"><span class="bar" style="height:${Math.max(3, 28 * Math.max(v, 0) / top)}px"></span></span>`
-      + `<span class="val">${kit ? signed(v, 2) : fmt(v, shock || flood ? f.digits : 1)}</span><span class="d">Day ${k + 1}</span>`;
+      + `<span class="val">${kit ? signed(v, 2) : reach ? v : fmt(v, shock || flood ? f.digits : 1)}</span><span class="d">Day ${k + 1}</span>`;
     b.onclick = () => goTo(k, Math.abs(k - state.t) <= 1);
     return b;
   }));
@@ -391,7 +408,8 @@ function renderPanel(k) {
   if (s.kind === "shock") {
     $("stats").innerHTML = (s.size < Math.pow(10, -d) ? stat("Largest change", "None", "on this day")   // no reach without a change
       : stat("Largest change", `${signed(s.e.v, d)} ${unitOf(f, s.e.v)}`, at(s.e))
-        + stat("Reach", s.far < 0.5 ? "In the box" : `${km(s.far)} km`, "from the shock box"))
+        + (+ch === 7 ? "" : stat("At that point", `${fmt(s.a, d)} → ${fmt(s.b, d)} ${u}`, `without → with the ${WORD}`))
+        + stat("Reach", s.far < 0.5 ? "In the box" : `${km(s.far)} km`, "from the box"))
       + (s.state ? stat("Largest change of alert area", `${pct(s.state.before)} → ${pct(s.state.after)}`, s.state.name) : "")
       + (s.people ? stat("People in the alert area", `${persons(s.people[0])} → ${persons(s.people[1])}`, "without → with the shock") : "");
   } else if (s.kind === "flood") {
@@ -420,19 +438,21 @@ function setDay(k, force) {
 }
 
 // ---- running the twin ------------------------------------------------------------------------------------
-function shockDelta(name, last) {                                   // the organisers' shocks, plus the +2.5 °C test
-  if (name === "none") return null;
+function shockDelta(spec, last) {                                   // the perturbation [6,32,36] for a change
   const d = Array.from({ length: 6 }, () => Array.from({ length: NLAT }, () => new Array(NLON).fill(0)));
-  const [a0, a1, o0, o1] = BOXES[name];
+  const [a0, a1, o0, o1] = spec.box;
   for (let i = 0; i < NLAT; i++) for (let j = 0; j < NLON; j++) {
     const [la, lo] = ll(i, j);
     if (la < a0 || la > a1 || lo < o0 || lo > o1) continue;
-    if (name === "warm_ocean") { d[0][i][j] = 3; d[5][i][j] = 0.15 * last[5][i][j]; }
-    if (name === "monsoon_stall") { d[2][i][j] = -0.4 * last[2][i][j]; d[3][i][j] = -0.4 * last[3][i][j]; }
-    if (name === "arabian_heat") d[0][i][j] = 2.5;
+    if (spec.t2m) d[0][i][j] = spec.t2m;
+    if (spec.msl) d[4][i][j] = spec.msl;
+    if (spec.tcwv) d[5][i][j] = spec.tcwv * last[5][i][j];
+    if (spec.wind) { d[2][i][j] = spec.wind * last[2][i][j]; d[3][i][j] = spec.wind * last[3][i][j]; }
   }
   return d;
 }
+// The change of this page: none on the forecast page, a preset on the flood page, the builder on the twin page.
+const specNow = () => (PAGE === "twin" ? Builder.spec() : PAGE === "flood" && $("shock").value !== "none" ? PRESETS[$("shock").value] : null);
 async function simulate(w, perturbation) {
   const r = await fetch(SERVER + "/simulate", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ init_states: w.init_states, doy_sincos: w.doy_sincos, steps: DAYS, perturbation }) });
@@ -440,20 +460,22 @@ async function simulate(w, perturbation) {
   return r.json();
 }
 async function run() {
-  const req = ++state.req, w = W(), name = $("shock").value;
+  const req = ++state.req, w = W(), spec = specNow();
   $("status").textContent = "The twin calculates 10 days…";
   try {
     const base = await simulate(w, null);
-    const shocked = name === "none" ? null : await simulate(w, shockDelta(name, w.init_states[2]));
+    const shocked = spec ? await simulate(w, shockDelta(spec, w.init_states[2])) : null;
     if (req !== state.req) return;                                  // a newer request started meanwhile
-    Object.assign(state, { base, shocked, flood: {} });
+    Object.assign(state, { base, shocked, spec, flood: {} });
     $("status").textContent = `Live from the twin · ${base.inference_ms.toFixed(0)} ms`;
     P.forEach(p => {
-      if (name === "none") p.box.remove();
-      else { const [a0, a1, o0, o1] = BOXES[name]; p.box.setBounds([[a0, o0], [a1, o1]]).addTo(p.map); }
+      if (!spec) p.box.remove();
+      else { const [a0, a1, o0, o1] = spec.box; p.box.setBounds([[a0, o0], [a1, o1]]).addTo(p.map); }
     });
-    $("v-shock").disabled = name === "none";
-    setView(name !== "none" ? "shock" : state.view === "shock" ? HOME : state.view, true);
+    if (PAGE === "flood") {
+      $("v-shock").disabled = !spec;
+      setView(spec ? "shock" : state.view === "shock" ? HOME : state.view, true);
+    } else setView(state.view, true);
   } catch (e) {
     console.error(e);
     $("status").textContent = `Cannot reach the twin (${e.message}). Start it: python serve.py --port 8000`;
@@ -490,7 +512,8 @@ const stepBy = n => goTo(aim + n, true);             // every click counts, even
 // ---- controls and the hover tooltip ------------------------------------------------------------------------
 WINDOWS.forEach((w, i) => $("win").add(new Option(w.label, i)));
 if (document.body.dataset.page === "flood") $("win").value = WINDOWS.findIndex(w => w.label.startsWith("Flood:"));
-$("win").onchange = $("shock").onchange = () => run();
+$("win").onchange = () => run();
+if ($("shock")) $("shock").onchange = () => run();
 $("field").onchange = () => { buildTimeline(); draw(state.t); setDay(Math.floor(state.t), true); };
 $("wind").onchange = () => updateWind(Math.floor(state.t));
 $("prev").onclick = () => stepBy(-1); $("next").onclick = () => stepBy(1);
@@ -523,6 +546,7 @@ P.forEach(p => {
                         : c ? `<div class="state">${c === "People's Republic of China" ? "China" : c}</div>` : "")
       + `<div class="where">${lat.toFixed(1)}° N · ${lng.toFixed(1)}° E</div>`
       + (state.view === "compare" ? row("Real", v[0]) + row("Twin", v[1]) + row("Difference", v[1] - v[0], true)
+         : state.view === "universes" ? row("Universe A", v[0]) + row("Universe B", v[1]) + row("Difference", v[1] - v[0], true)
                                   : row(VIEW_TITLE[state.view], v[0], state.view === "shock"))
       + `<div class="unit">${f.unit}</div>`;
     const box = $("wrap").getBoundingClientRect(), x = e.originalEvent.clientX - box.left, y = e.originalEvent.clientY - box.top;
