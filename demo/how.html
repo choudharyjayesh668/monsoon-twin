@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monsoon Twin · How it works</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html">Monsoon Twin</a>
+  <nav aria-label="Pages"><a href="index.html">Map</a><a href="how.html" aria-current="page">How it works</a><a href="results.html">Results</a></nav>
+</header>
+<main class="page">
+  <h1>How the twin works</h1>
+  <p class="lede">The twin is a digital copy of the weather of India. It uses the weather of 3 days.
+     It calculates the weather for the next 10 days, one day at a time.</p>
+  <div class="grid">
+    <div class="block">
+      <h2>What the twin calculates</h2>
+      <p>The twin calculates 6 values for each point of a grid of 32 × 36 points. The values are temperature, rain,
+         2 wind values, sea-level pressure and water vapour.</p>
+      <p>Each grid point is 1 degree wide. That is approximately 110 km.</p>
+    </div>
+    <div class="block">
+      <h2>How the network works</h2>
+      <p>The twin is a small neural network. It calculates the change of the weather for 1 day.
+         Then it uses its own result to calculate the next day.</p>
+      <p>Each day, the network looks at 6 grid points around each point. Thus, a change moves at most 6 points
+         in 1 day. A change cannot jump across India.</p>
+    </div>
+    <div class="block">
+      <h2>What a shock is</h2>
+      <p>A shock is a change to the last day of weather. For example, the shock makes the Bay of Bengal 3 °C warmer.</p>
+      <p>The twin calculates the weather with the shock and without the shock. The difference shows the effect of the shock.</p>
+    </div>
+    <div class="block">
+      <h2>How to use the map</h2>
+      <ol>
+        <li>Select a weather window.</li>
+        <li>Select a shock, or select "No shock".</li>
+        <li>Select a field, for example rain.</li>
+        <li>Select a view: Forecast, Real, Error or Shock.</li>
+        <li>Click the play button.</li>
+      </ol>
+    </div>
+    <div class="block">
+      <h2>What the views show</h2>
+      <p><strong>Forecast</strong> shows the result of the twin. <strong>Real</strong> shows the real weather.
+         <strong>Error</strong> shows the forecast minus the real weather. <strong>Shock</strong> shows the change
+         that the shock causes.</p>
+      <p>Red shows an increase. Blue shows a decrease.</p>
+    </div>
+    <div class="block">
+      <h2>Where the data comes from</h2>
+      <p>The twin runs on this computer. The page sends each request to the twin server. The page does not show
+         saved results. The map does not use the internet.</p>
+      <p>The text on this site follows ASD-STE100 Simplified Technical English.</p>
+    </div>
+  </div>
+</main>
+</body>
+</html>

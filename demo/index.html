@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monsoon Twin · Map</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet-velocity.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html">Monsoon Twin</a>
+  <nav aria-label="Pages"><a href="index.html" aria-current="page">Map</a><a href="how.html">How it works</a><a href="results.html">Results</a></nav>
+</header>
+<div class="mapwrap">
+  <div id="map" role="application" aria-label="Map of India with the twin's weather"></div>
+
+  <details class="card panel" id="panel" open>
+    <summary><h1>Weather of India, live</h1></summary>
+    <p class="hint">Select a window and a shock. The twin calculates 10 days on this computer.</p>
+    <label>Weather window <select id="win"></select></label>
+    <label>Shock
+      <select id="shock">
+        <option value="none">No shock</option>
+        <option value="warm_ocean">Warmer Bay of Bengal (+3 °C, +15% moisture)</option>
+        <option value="monsoon_stall">Weaker Arabian Sea wind (−40%)</option>
+        <option value="arabian_heat">Warmer Arabian Sea (+2.5 °C)</option>
+      </select>
+    </label>
+    <label>Field
+      <select id="field">
+        <option value="1">Rain</option><option value="0">Temperature</option><option value="6">Wind speed</option>
+        <option value="5">Water vapour</option><option value="4">Sea-level pressure</option>
+      </select>
+    </label>
+    <div class="seg four" role="group" aria-label="View">
+      <button data-view="forecast" aria-pressed="true">Forecast</button>
+      <button data-view="real" aria-pressed="false">Real</button>
+      <button data-view="error" aria-pressed="false">Error</button>
+      <button data-view="shock" id="v-shock" aria-pressed="false" disabled>Shock</button>
+    </div>
+    <div class="dayrow">
+      <button class="play" id="play" aria-label="Play">▶</button>
+      <input id="day" type="range" min="1" max="8" value="1" aria-label="Forecast day">
+      <span class="daylabel" id="daylabel">Day 1</span>
+    </div>
+    <label class="check"><input type="checkbox" id="wind" checked> Show the wind flow</label>
+    <div class="status" id="status" role="status"></div>
+  </details>
+
+  <div class="card caption" id="cap" aria-live="polite">
+    <div class="t" id="captitle"></div>
+    <p id="captext"></p>
+  </div>
+
+  <div class="card legend">
+    <div class="title" id="legtitle"></div>
+    <canvas id="bar" width="300" height="10"></canvas>
+    <div class="ticks"><span id="lo"></span><span id="mid"></span><span id="hi"></span></div>
+  </div>
+  <div class="card readout" id="readout">Point at the map to read a value.</div>
+</div>
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet-velocity.min.js"></script>
+<script src="data/borders.js"></script>
+<script src="windows.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

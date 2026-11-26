@@ -63,6 +63,23 @@ python serve.py --port 8000 &  python -m monsoon_r1.schema_validator http://loca
 
 Start the server, then open `dashboard/index.html` in a browser. It sends a sample 3-day window to `/simulate`, with or without a shock, and maps any field on any day. It can also map the difference between the shocked and the unshocked world.
 
+## Demo
+
+A local demo site for people, in `demo/`, with three pages: a full-screen **Map**, **How it works** and **Results**.
+
+- The map shows India with smooth colour fields for rain, temperature, wind speed, water vapour and pressure.
+- Animated wind particles show the flow. A play button moves slowly through the 8 days.
+- Each day, a caption says what is happening, read from the forecast itself.
+- Four views: the twin's forecast, the real weather, the forecast error, and the effect of a shock.
+- Every forecast comes live from the twin server; nothing is pre-rendered. The text follows ASD-STE100 Simplified Technical English.
+
+```bash
+python serve.py --port 8000 &
+python -m http.server 5173 -d demo      # then open http://localhost:5173
+```
+
+It runs fully offline. The libraries are bundled in `demo/vendor/` with their licences: [Leaflet](https://leafletjs.com) (BSD-2) and [leaflet-velocity](https://github.com/onaci/leaflet-velocity) (CSIRO BSD/MIT-style). The borders are [Natural Earth](https://www.naturalearthdata.com) 1:10m, India point of view (public domain), clipped by `demo/make_map.py`. `demo/make_windows.py` rebuilds the sample windows from the training data.
+
 ## Results
 
 Measured once on **2020–2021**, held out from training and tuning: the development model, trained on 2005–2017 and tuned on 2018–2019. The shipped weights use the same recipe retrained on 2005–2021 ([ADR 2](docs/adr/0002-ship-weights-retrained-on-all-years.md)). Scored with the organisers' functions on 721 windows. The grader's way of averaging across windows is not published, so forecast points are shown three ways.
