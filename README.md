@@ -86,6 +86,8 @@ It runs fully offline. Everything it uses is bundled in `demo/`:
 
 `demo/make_map.py` rebuilds the border files from those sources, and `demo/make_windows.py` rebuilds the sample windows from the training data (it needs the kit wheel, for the climatology RMSE). `demo/make_flood.py` rebuilds the flood thresholds in `demo/data/flood.js` (it runs the twin, about 3 minutes on a laptop CPU).
 
+On a phone, the page scrolls and the two maps stack, with the legend above them and the numbers panel below. A vertical swipe scrolls the page instead of panning the map; the +/− buttons zoom.
+
 ### Host it on Railway
 
 The `Dockerfile` runs the twin server and the demo site in one container, on open-source maths only (conda-forge PyTorch on OpenBLAS). Inside, `serve.py` listens on port 8000. `demo/serve_demo.py` serves the site on Railway's public port and passes `/health` and `/simulate` to the twin. `railway.json` tells Railway to build the Dockerfile.
