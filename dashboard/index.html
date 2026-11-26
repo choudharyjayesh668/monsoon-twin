@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monsoon Twin</title>
+<style>
+  :root { --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --line: #d9d9d4; --accent: #1f5fa8; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ececea; --muted: #a3a39e; --line: #33332f; --accent: #7fb0e8; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: var(--muted); }
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  select, input, button { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--fg); }
+  button { background: var(--accent); color: #fff; border: 0; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  canvas { width: 100%; max-width: 576px; image-rendering: pixelated; border: 1px solid var(--line); display: block; }
+  .legend { display: flex; justify-content: space-between; max-width: 576px; font-size: 13px; color: var(--muted); margin-top: 4px; }
+  #status { min-height: 1.4em; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Monsoon Twin</h1>
+  <p>Live forecasts from the twin's own <code>/simulate</code>. Pick a shock to branch the multiverse; "difference" shows
+     how the shocked world departs from the unshocked one.</p>
+  <div class="controls">
+    <label>Server <input id="url" value="http://localhost:8000"></label>
+    <label>Shock
+      <select id="shock">
+        <option value="none">none</option>
+        <option value="warm_ocean">warm Bay of Bengal (+3 K, +15% moisture)</option>
+        <option value="monsoon_stall">weaker Arabian Sea wind (−40%)</option>
+        <option value="arabian_heat">hot Arabian Sea (+2.5 K)</option>
+      </select>
+    </label>
+    <label>Field
+      <select id="channel">
+        <option value="0">temperature t2m (K)</option><option value="1">rain tp (mm/day)</option>
+        <option value="2">wind u10 (m/s)</option><option value="3">wind v10 (m/s)</option>
+        <option value="4">pressure msl (Pa)</option><option value="5">moisture tcwv (kg/m²)</option>
+      </select>
+    </label>
+    <label>View
+      <select id="view"><option value="value">forecast</option><option value="diff">difference from unshocked</option></select>
+    </label>
+    <label>Day <input id="day" type="range" min="1" max="10" value="1"></label>
+    <label>&nbsp;<button id="run">Run 10 days</button></label>
+  </div>
+  <div id="status" role="status"></div>
+  <canvas id="map" width="36" height="32" aria-label="Map of the selected field over India, north at the top"></canvas>
+  <div class="legend"><span id="lo"></span><span id="title"></span><span id="hi"></span></div>
+</main>
+<script src="sample_window.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const NLAT = 32, NLON = 36;
+const lat = i => 6.5 + i, lon = j => 65.5 + j;
+const BOXES = { warm_ocean: [8, 20, 82, 94], monsoon_stall: [8, 20, 65, 75], arabian_heat: [8, 20, 65, 75] };
+let base = null, shocked = null;
+
+function shockDelta(name, last) {               // same deltas as the grader's make_shock, plus the +2.5 K heat test
+  const d = Array.from({ length: 6 }, () => Array.from({ length: NLAT }, () => new Array(NLON).fill(0)));
+  if (name === "none") return null;
+  const [la0, la1, lo0, lo1] = BOXES[name];
+  for (let i = 0; i < NLAT; i++) for (let j = 0; j < NLON; j++) {
+    if (lat(i) < la0 || lat(i) > la1 || lon(j) < lo0 || lon(j) > lo1) continue;
+    if (name === "warm_ocean") { d[0][i][j] = 3.0; d[5][i][j] = 0.15 * last[5][i][j]; }
+    if (name === "monsoon_stall") { d[2][i][j] = -0.4 * last[2][i][j]; d[3][i][j] = -0.4 * last[3][i][j]; }
+    if (name === "arabian_heat") d[0][i][j] = 2.5;
+  }
+  return d;
+}
+
+async function simulate(perturbation) {
+  const r = await fetch($("url").value.replace(/\/$/, "") + "/simulate", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ init_states: SAMPLE.init_states, doy_sincos: SAMPLE.doy_sincos, steps: 10, perturbation }),
+  });
+  if (!r.ok) throw new Error("server answered " + r.status);
+  return r.json();
+}
+
+function color(t, diverging) {                  // t in [0,1]
+  if (diverging) {                              // blue - white - red
+    const a = Math.abs(t - 0.5) * 2, c = Math.round(255 * (1 - a));
+    return t < 0.5 ? [c, c, 255] : [255, c, c];
+  }
+  return [Math.round(30 + 200 * t), Math.round(60 + 140 * (1 - Math.abs(t - 0.5) * 2)), Math.round(220 - 190 * t)];
+}
+
+function draw() {
+  if (!base) return;
+  const ch = +$("channel").value, k = +$("day").value - 1, diff = $("view").value === "diff" && shocked;
+  const field = (i, j) => diff ? shocked.rollout[k][ch][i][j] - base.rollout[k][ch][i][j]
+                               : (shocked || base).rollout[k][ch][i][j];
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < NLAT; i++) for (let j = 0; j < NLON; j++) { const v = field(i, j); lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  if (diff) { const m = Math.max(Math.abs(lo), Math.abs(hi), 1e-9); lo = -m; hi = m; }
+  const ctx = $("map").getContext("2d"), img = ctx.createImageData(NLON, NLAT);
+  for (let i = 0; i < NLAT; i++) for (let j = 0; j < NLON; j++) {
+    const [r, g, b] = color(hi > lo ? (field(i, j) - lo) / (hi - lo) : 0.5, diff);
+    const p = ((NLAT - 1 - i) * NLON + j) * 4;   // north at the top
+    img.data.set([r, g, b, 255], p);
+  }
+  ctx.putImageData(img, 0, 0);
+  $("lo").textContent = lo.toPrecision(4); $("hi").textContent = hi.toPrecision(4);
+  $("title").textContent = `day ${k + 1}, ${$("channel").selectedOptions[0].text}${diff ? ", shocked minus unshocked" : ""}`;
+}
+
+$("run").onclick = async () => {
+  $("run").disabled = true; $("status").textContent = "Simulating…";
+  try {
+    const name = $("shock").value;
+    base = await simulate(null);
+    shocked = name === "none" ? null : await simulate(shockDelta(name, SAMPLE.init_states[2]));
+    $("status").textContent = `Done: ${SAMPLE.label}. Server time ${base.inference_ms.toFixed(0)} ms per run.`;
+    draw();
+  } catch (e) {
+    $("status").textContent = "Could not reach the twin: " + e.message + ". Is serve.py running?";
+  } finally { $("run").disabled = false; }
+};
+for (const id of ["channel", "day", "view"]) $(id).oninput = draw;
+</script>
+</body>
+</html>

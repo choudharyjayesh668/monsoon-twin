@@ -1,0 +1,47 @@
+# Files that must never be committed (see guidelines-rules.md).
+
+# R-10.4, R-1.5: environments, caches, compiled files, logs, secrets
+.venv/
+envs/
+.claude/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.log
+.env
+*.pem
+*.key
+
+# R-4.4, R-0.3: climate data stays in the kit folder
+*.nc
+*.nc4
+*.grib*
+*.zarr
+
+# R-4.3: no archives of past weather (any npy/npz shaped like a multi-year daily archive is a critical scan flag)
+*.npy
+*.npz
+
+# R-4.10, R-0.2: no kit code or release assets (stats.json alone may be copied in)
+monsoon_r1/
+release/
+build_dataset.py
+client.py
+contract.py
+repo_scan.py
+schema_validator.py
+scoring.py
+stats.py
+*.whl
+API_CONTRACT.md
+R1_CONTRACT.md
+SHA256SUMS.txt
+
+# R-0.1: reference material stays outside the repo
+Yugaantar DevForge Tracks.pdf
+
+# Only the shipped weights: train.py also writes one checkpoint per phase next to its output
+weights/*.unroll*.pt
+
+/tmp/
+CLAUDE.md
