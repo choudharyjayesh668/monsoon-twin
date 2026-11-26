@@ -19,7 +19,7 @@ You can also change the last day, for example make the Bay of Bengal 3 °C warme
 | `tests/` | The automatic tests. |
 | `dashboard/` | A small map page. |
 | `demo/` | The demo site: Forecast, Climate twin, Flood risk, How it works and Results. |
-| `brief/` | The 2-page brief. |
+| `brief/` | The 2-page brief (`brief.pdf`) and its LaTeX source. To make the PDF again, run `latexmk -pdf brief.tex`. |
 | `docs/adr/` | The design decisions. |
 | `challenges.md` | The problems that we had, and what we did. |
 
