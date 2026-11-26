@@ -76,7 +76,7 @@ yugaantar/
   `python -c "from monsoon_r1.repo_scan import scan; import json; print(json.dumps(scan('.'), indent=1))"` (run inside `monsoon-twin/`)
 - **R-4.10** **No kit code in the submission repo.** No `monsoon_r1/` package, no copied kit files (`build_dataset.py`, `repo_scan.py`, `client.py`, the starter `serve.py`), and no `release/` folder. The kit is used only through the pip-installed wheel, by local tooling (eval scripts, the validator, the scan). If an eval script imports `monsoon_r1`, keep it out of the server's import graph. Measured 2026-11-26: with the kit's files present, the scan treats them as inference code (they contain the string `/simulate`) and raises **12 critical flags**, because `repo_scan.py` lists the banned API names. That costs all 8 anti-cheat points. Run R-4.9 on a fresh clone before submitting.
 - **R-4.11** **The route string marks a file as inference code.** The scan treats any `.py` file containing `/simulate`, or `simulate` in quotes, as inference code, together with every local module it imports. This holds even inside a comment or docstring. So:
-  - Only `serve.py` and `tests/test_serve.py` contain that string, and they import only `twin.py`.
+  - Only `serve.py`, `tests/test_serve.py` and the hosting proxy `demo/serve_demo.py` contain that string. The first two import only `twin.py`; the proxy imports only the standard library.
   - `train.py`, `evaluate.py` and their tests call the model in-process as `twin.rollout` and never contain the string. If `train.py` joined the inference set, the 3 training-pipeline points would be lost.
   - Inference files hold no plotting imports, no names of weather services, and no 8-digit numbers that look like dates.
 

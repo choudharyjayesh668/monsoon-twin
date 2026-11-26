@@ -67,10 +67,10 @@ Start the server, then open `dashboard/index.html` in a browser. It sends a samp
 
 A local demo site for people, in `demo/`, with three pages: a full-screen **Map**, **How it works** and **Results**.
 
-- The map shows India with smooth colour fields for rain, temperature, wind speed, water vapour and pressure.
-- Animated wind particles show the flow. A play button moves slowly through the 8 days.
-- Each day, a caption says what is happening, read from the forecast itself.
-- Four views: the twin's forecast, the real weather, the forecast error, and the effect of a shock.
+- **Compare** shows the twin's forecast and the real weather side by side, on one colour scale, with synced pan and zoom. Five real windows match the five kinds of hidden test: monsoon onset, heavy rain, heatwave, cyclone and winter rain.
+- A panel over the maps gives each day's error **in numbers**: mean error, largest error and where, heavy rain found, and the comparison with "repeat yesterday". A clickable strip shows all 10 days.
+- India's states and union territories are drawn as India shows them. Hovering names the state and reads the twin, real and difference values there.
+- Smooth colour fields, animated wind flow, slow-motion play, and a **Shock** view of what a shock changes.
 - Every forecast comes live from the twin server; nothing is pre-rendered. The text follows ASD-STE100 Simplified Technical English.
 
 ```bash
@@ -78,7 +78,22 @@ python serve.py --port 8000 &
 python -m http.server 5173 -d demo      # then open http://localhost:5173
 ```
 
-It runs fully offline. The libraries are bundled in `demo/vendor/` with their licences: [Leaflet](https://leafletjs.com) (BSD-2) and [leaflet-velocity](https://github.com/onaci/leaflet-velocity) (CSIRO BSD/MIT-style). The borders are [Natural Earth](https://www.naturalearthdata.com) 1:10m, India point of view (public domain), clipped by `demo/make_map.py`. `demo/make_windows.py` rebuilds the sample windows from the training data.
+It runs fully offline. Everything it uses is bundled in `demo/`:
+- libraries in `demo/vendor/`, with their licences: [Leaflet](https://leafletjs.com) (BSD-2) and [leaflet-velocity](https://github.com/onaci/leaflet-velocity) (CSIRO BSD/MIT-style);
+- India, state and union-territory borders from the [DataMeet India community](https://github.com/datameet/maps) (CC BY 4.0);
+- neighbouring countries from [Natural Earth](https://www.naturalearthdata.com) (public domain).
+
+`demo/make_map.py` rebuilds the border files from those sources, and `demo/make_windows.py` rebuilds the sample windows from the training data.
+
+### Host it on Railway
+
+The `Dockerfile` runs the twin server and the demo site in one container, on open-source maths only (conda-forge PyTorch on OpenBLAS). Inside, `serve.py` listens on port 8000. `demo/serve_demo.py` serves the site on Railway's public port and passes `/health` and `/simulate` to the twin. `railway.json` tells Railway to build the Dockerfile.
+
+1. Push the repo to GitHub.
+2. On [railway.com](https://railway.com): **New Project → Deploy from GitHub repo →** this repo. Railway builds the Dockerfile; the first build takes a few minutes.
+3. **Settings → Networking → Generate Domain**, then open the link.
+
+The same image runs locally: `docker build -t monsoon-twin-demo . && docker run -p 8080:8080 monsoon-twin-demo`, then open http://localhost:8080.
 
 ## Results
 

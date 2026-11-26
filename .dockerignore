@@ -1,0 +1,12 @@
+.git
+.venv
+envs
+.claude
+.pytest_cache
+__pycache__
+**/__pycache__
+tests
+brief
+docs
+dashboard
+*.nc

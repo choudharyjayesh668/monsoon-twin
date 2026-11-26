@@ -1,7 +1,9 @@
 "use strict";
 // Monsoon Twin demo map. Every forecast comes live from the twin server's /simulate; nothing is pre-rendered.
 
-const SERVER = new URLSearchParams(location.search).get("server") || "http://localhost:8000";
+// Hosted (demo/serve_demo.py): the twin is on the same address. Local (python -m http.server 5173): on port 8000.
+const SERVER = new URLSearchParams(location.search).get("server")
+  ?? (location.protocol === "file:" || location.port === "5173" ? "http://localhost:8000" : "");
 const $ = id => document.getElementById(id);
 const NLAT = 32, NLON = 36, LAT0 = 6.5, LON0 = 65.5, DAYS = 10, GLIDE_MS = 1400;
 const BOUNDS = [[6, 65], [38, 101]];                               // outer edges of the 1-degree cells
@@ -286,7 +288,7 @@ function updateMarks(k) {
 // ---- drawing -----------------------------------------------------------------------------------------------
 function draw(t) {
   if (!state.base) return;
-  const ch = CH(), k0 = Math.min(DAYS - 1, Math.floor(t)), k1 = Math.min(DAYS - 1, k0 + 1);
+  const ch = CH(), k0 = Math.max(0, Math.min(DAYS - 1, Math.floor(t))), k1 = Math.min(DAYS - 1, k0 + 1);
   const g0 = grids(k0, ch), g = k1 === k0 ? g0 : g0.map((x, n) => lerp(x, grids(k1, ch)[n], t - k0));
   let stops = STOPS[FIELDS[ch].stops], tf;
   if (state.view === "shock") {  // scale to this day's largest change; a square-root curve keeps small changes visible
@@ -434,7 +436,7 @@ function goTo(k, smooth) {
   if (!smooth || Math.abs(k - from) > 1.01) { state.t = k; draw(k); setDay(k, true); return; }
   const t0 = performance.now(); let painted = 0;
   const step = now => {
-    const a = Math.min(1, (now - t0) / GLIDE_MS), e = 1 - Math.pow(1 - a, 3);       // ease out
+    const a = Math.min(1, Math.max(0, (now - t0) / GLIDE_MS)), e = 1 - Math.pow(1 - a, 3);   // ease out; a frame can predate t0
     state.t = from + (k - from) * e;
     if (a >= 1) { glide = null; state.t = k; draw(k); setDay(k, true); return; }
     if (now - painted > 120) { draw(state.t); painted = now; }
