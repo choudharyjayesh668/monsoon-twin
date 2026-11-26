@@ -462,7 +462,7 @@ async function run() {
 function setView(v, force) {
   const changed = v !== state.view || force;
   state.view = v;
-  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === v));
+  document.querySelectorAll(".seg button[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === v));
   if (changed) layout();
   buildTimeline(); draw(state.t); setDay(Math.floor(state.t), true);
   if (changed) fit();
@@ -499,7 +499,7 @@ document.addEventListener("keydown", e => {                         // the arrow
   if (e.key === "ArrowRight") { e.preventDefault(); stepBy(1); }
   if (e.key === "ArrowLeft") { e.preventDefault(); stepBy(-1); }
 });
-document.querySelectorAll(".seg button").forEach(b => { b.onclick = () => setView(b.dataset.view); });
+document.querySelectorAll(".seg button[data-view]").forEach(b => { b.onclick = () => setView(b.dataset.view); });
 const tip = $("tip");
 let lit = null;
 function highlight(name) {                                          // outline the state under the cursor on both maps

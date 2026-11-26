@@ -17,6 +17,10 @@
 </header>
 
 <div class="toolbar" role="toolbar" aria-label="Map controls">
+  <div class="seg tabs" role="tablist" aria-label="Flood risk views">
+    <button role="tab" id="tab-map" aria-selected="true" aria-controls="wrap">Map</button>
+    <button role="tab" id="tab-ladder" aria-selected="false" aria-controls="ladder">Early warning</button>
+  </div>
   <label>Weather window <select id="win"></select></label>
   <label>Shock
     <select id="shock">
@@ -37,10 +41,22 @@
     <button class="step" id="next" aria-label="Next day" title="Next day (→)">→</button>
   </div>
   <label class="check"><input type="checkbox" id="wind" checked> Wind flow</label>
-  <button class="scores" id="open-scores" type="button">Past floods: scores</button>
+  <button class="scores" id="open-scores" type="button">Alert scores</button>
 </div>
 
 <div class="mapwrap one" id="wrap">
+  <section class="tabpanel" id="ladder" role="tabpanel" aria-labelledby="tab-ladder" hidden>
+    <div class="inner">
+      <h2>How early could the twin have warned?</h2>
+      <p class="lede" id="ladder-sum">The twin calculates 28 forecasts…</p>
+      <p class="note">For each past flood, the page starts the twin 7, 6 … 1 days before the peak, now, and reads the alert
+         level of the state on the peak day. "Warned N days before" means that every start from N days before the peak gave
+         a warning or higher.</p>
+      <div id="ladders"></div>
+      <p class="note">The twin used these years during training, thus the lead times are better than for a new flood.
+         Each grid point is approximately 110 km wide: the alert is for the state, not for one valley or city.</p>
+    </div>
+  </section>
   <div class="pane" id="paneA">
     <div class="maplabel" id="title0">Twin forecast</div>
     <div class="map" id="mapA" role="application" aria-label="Map of the real weather, or of the selected view"></div>
@@ -98,8 +114,10 @@
 <script src="windows.js"></script>
 <script src="data/flood.js"></script>
 <script src="data/population.js"></script>
+<script src="data/ladders.js"></script>
 <script src="flood.js"></script>
 <script src="app.js"></script>
 <script src="flood-scores.js"></script>
+<script src="flood-ladder.js"></script>
 </body>
 </html>
