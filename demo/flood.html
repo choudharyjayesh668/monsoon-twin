@@ -28,8 +28,7 @@
   </label>
   <input type="hidden" id="field" value="7">
   <div class="seg" role="group" aria-label="View">
-    <button data-view="compare" aria-pressed="true">Compare</button>
-    <button data-view="forecast" aria-pressed="false">Forecast</button>
+    <button data-view="forecast" aria-pressed="true">Forecast</button>
     <button data-view="shock" id="v-shock" aria-pressed="false" disabled>Shock</button>
   </div>
   <div class="dayrow">
@@ -41,9 +40,9 @@
   <button class="scores" id="open-scores" type="button">Past floods: scores</button>
 </div>
 
-<div class="mapwrap two" id="wrap">
+<div class="mapwrap one" id="wrap">
   <div class="pane" id="paneA">
-    <div class="maplabel" id="title0">Real weather</div>
+    <div class="maplabel" id="title0">Twin forecast</div>
     <div class="map" id="mapA" role="application" aria-label="Map of the real weather, or of the selected view"></div>
   </div>
   <div class="pane" id="paneB">
@@ -72,7 +71,7 @@
 
   <div class="card tip" id="tip" hidden></div>
   <div class="credit">Borders: <a href="https://github.com/datameet/maps">DataMeet</a> (India, states, CC BY 4.0) ·
-    <a href="https://www.naturalearthdata.com">Natural Earth</a> · <a href="https://leafletjs.com">Leaflet</a> · leaflet-velocity</div>
+    <a href="https://www.naturalearthdata.com">Natural Earth</a> · Population: <a href="https://www.worldpop.org">WorldPop</a> 2011 (CC BY 4.0) · <a href="https://leafletjs.com">Leaflet</a> · leaflet-velocity</div>
 </div>
 
 <dialog id="scores" aria-labelledby="scores-title">
@@ -98,6 +97,7 @@
 <script src="data/india.js"></script>
 <script src="windows.js"></script>
 <script src="data/flood.js"></script>
+<script src="data/population.js"></script>
 <script src="flood.js"></script>
 <script src="app.js"></script>
 <script src="flood-scores.js"></script>

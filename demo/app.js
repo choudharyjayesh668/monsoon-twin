@@ -39,7 +39,9 @@ const PANE_TITLE = { compare: ["Real weather", "Twin forecast"], forecast: ["Twi
 const COS = Array.from({ length: NLAT }, (_, i) => Math.cos((LAT0 + i) * Math.PI / 180));
 const COS_SUM = COS.reduce((a, b) => a + b, 0) * NLON;
 
-const state = { base: null, shocked: null, flood: {}, view: "compare", t: 0, playing: false, grids: [], stats: [], req: 0 };
+// The flood page shows only the twin: no Compare view with the real weather.
+const HOME = document.body.dataset.page === "flood" ? "forecast" : "compare";
+const state = { base: null, shocked: null, flood: {}, view: HOME, t: 0, playing: false, grids: [], stats: [], req: 0 };
 
 // ---- two maps that move together: the twin (left, or the only map) and the real weather (right) -----------
 function makeMap(id) {
@@ -217,11 +219,9 @@ function kitStats(k, ch) {
   const mine = FIELD_CH[ch].map(c => all[c]);
   return { kind: "kit", mine, skill: mean(mine.map(x => x.ss)), skillAll: mean(all.map(x => x.ss)) };
 }
-function floodStats(k) {                                            // the twin's flood alerts against the real ones
-  const real = view("actual", k, 7), twin = view("base", k, 7), c = FloodRisk.compare(real, twin);
-  const p = FloodRisk.compare(real, view("persist", k, 7));
-  return { kind: "flood", c, p, area: c.twin / FloodRisk.landCells, skill: c.found != null && p.found != null ? c.found - p.found : 0,
-           top: FloodRisk.byState(twin, cellStates())[0], realTop: FloodRisk.byState(real, cellStates())[0] };
+function floodStats(k) {                                            // the states and people under an alert in the twin map shown
+  const g = view(state.shocked ? "shocked" : "base", k, 7);
+  return { kind: "flood", states: FloodRisk.stateAlerts(g, cellStates()), people: FloodRisk.people(g), warned: FloodRisk.people(g, 2) };
 }
 function stateShift(k) {                                            // the state whose alert area the shock changes most
   const before = FloodRisk.byState(view("base", k, 7), cellStates()), after = {};
@@ -240,27 +240,36 @@ function dayStats(k, ch) {
       const [la, lo] = ll(i, j);
       far = Math.max(far, Math.hypot(Math.max(a0 - la, 0, la - a1), Math.max(o0 - lo, 0, lo - o1)));
     }));
-    return { kind: "shock", e, far, size: Math.abs(e.v), state: +ch === 7 ? stateShift(k) : null };
+    return { kind: "shock", e, far, size: Math.abs(e.v), state: +ch === 7 ? stateShift(k) : null,
+             people: +ch === 7 ? [FloodRisk.people(base), FloodRisk.people(view("shocked", k, ch))] : null };
   }
   return +ch === 7 ? floodStats(k) : kitStats(k, ch);
 }
 
-const shareText = s => (s && s.share > 0 ? `${s.name} (${pct(s.share)} of its area)` : "no state");
+const ALERT = ["", "flood watch", "flood warning", "severe flood warning"];
+const when = k => (k === 0 ? "tomorrow" : `in ${k + 1} days`);      // forecast day k+1, from the last real day
+const cap = t => t[0].toUpperCase() + t.slice(1);
+const persons = n => (n >= 1e6 ? `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)} million` : n >= 1e3 ? `${Math.round(n / 1e3)} thousand` : n ? String(n) : "none");
+function names(list) {                                              // "A", "A and B", "A, B, C and 2 more"
+  const n = list.length, head = n > 4 ? list.slice(0, 3) : list, more = n - head.length;
+  const all = more ? [...head, `${more} more`] : head;
+  return all.length < 2 ? all.join("") : all.slice(0, -1).join(", ") + " and " + all[all.length - 1];
+}
+function describe(states) {                                         // "flood warning for A and B; flood watch for C"
+  if (!states.length) return "no state under an alert";
+  return [3, 2, 1].map(l => states.filter(s => s.level === l)).filter(g => g.length)
+                  .map(g => `${ALERT[g[0].level]} for ${names(g.map(s => s.name))}`).join("; ");
+}
 function floodCaption(k) {
-  const s = state.stats[k];
-  if (state.view === "forecast") return "An alert compares the rain of 3 days with the rain that is rare for that place and month. "
-                                      + "Levels: watch, warning, severe.";
-  return `Real: the largest alert area is in ${shareText(s.realTop)}. Twin: ${shareText(s.top)}. `
-       + (s.p.found != null ? `“Repeat yesterday” finds ${pct(s.p.found)} of the real alerts.` : "");
+  return `Twin: ${describe(state.stats[k].states)}. An alert compares the rain of 3 days with the rain `
+       + "that is rare for that place and month.";
 }
 function floodHeadline(k) {
-  const s = state.stats[k];
-  if (state.view === "forecast") {
-    const g = FloodRisk.byState(grids(k, 7)[0], cellStates())[0];
-    return g && g.share > 0 ? `Flood alert in ${shareText(g)}.` : "No flood alert on this day.";
-  }
-  if (!s.c.real) return s.c.twin ? `No real flood alert on this day. The twin gives an alert on ${s.c.twin} cells.` : "No flood alert on this day. The twin agrees.";
-  return `The twin finds ${pct(s.c.found)} of the real flood-alert area.`;
+  const st = state.stats[k].states;
+  if (!st.length) return `No flood alert for any state ${when(k)}.`;
+  const worst = st.filter(s => s.level === st[0].level);
+  return `${cap(ALERT[st[0].level])} for ${names(worst.map(s => s.name))} ${when(k)}. `
+       + `About ${persons(state.stats[k].people)} people live in the alert area.`;
 }
 function captionText(k, ch) {
   if (+ch === 7 && state.view !== "shock") return floodCaption(k);
@@ -279,7 +288,9 @@ function headline(k, ch) {
   if (+ch === 7 && state.view !== "shock") return floodHeadline(k);
   const f = FIELDS[ch];
   if (state.view === "shock") {
-    const s = state.stats[k];
+    const s = state.stats[k], t = s.state;
+    if (+ch === 7) return t ? `The shock ${t.after > t.before ? "raises" : "lowers"} the flood-alert area of ${t.name} `
+                              + `${when(k)}: ${pct(t.before)} → ${pct(t.after)} of the state.` : `The shock does not change the flood alerts of any state ${when(k)}.`;
     return s.size < Math.pow(10, -f.digits) ? "The shock has no effect on this day."
          : `The shock ${s.e.v > 0 ? "adds" : "removes"} up to ${fmt(Math.abs(s.e.v), f.digits)} ${unitOf(f, s.e.v)} of ${f.name} ${at(s.e)}.`;
   }
@@ -354,17 +365,17 @@ function buildTimeline() {
   const ch = CH(), f = FIELDS[ch], shock = state.view === "shock";
   state.stats = Array.from({ length: DAYS }, (_, k) => dayStats(k, ch));
   const flood = +ch === 7 && !shock, kit = !flood && !shock;
-  const vals = state.stats.map(s => (flood ? 100 * s.area : shock ? s.size : s.skillAll)), top = Math.max(1e-6, ...vals);
-  $("tlhead").textContent = flood ? "Land with a flood alert in the twin, by day · %"
+  const vals = state.stats.map(s => (flood ? s.states.length : shock ? s.size : s.skillAll)), top = Math.max(1e-6, ...vals);
+  $("tlhead").textContent = flood ? "States under a flood alert in the twin, by day"
     : shock ? `Largest change from the shock, by day · ${f.unit}` : "Skill by day, all 6 fields · above 0: better than the best simple forecast";
   $("timeline").replaceChildren(...state.stats.map((s, k) => {
     const v = vals[k], b = document.createElement("button");
-    b.className = "chip" + ((kit ? s.skillAll : flood ? s.skill : 0) < 0 ? " worse" : ""); b.dataset.k = k;
-    b.title = flood ? `Day ${k + 1}: flood alert on ${fmt(v, 0)}% of the land` + (s.c.found != null ? `; ${pct(s.c.found)} of the real alerts found` : "")
+    b.className = "chip" + (kit && s.skillAll < 0 ? " worse" : ""); b.dataset.k = k;
+    b.title = flood ? `Day ${k + 1}: ${describe(s.states)}`
             : shock ? `Day ${k + 1}: largest change ${fmt(v, f.digits)} ${f.unit}`
                     : `Day ${k + 1}: skill ${signed(v, 2)}, all 6 fields, as the organisers' kit calculates it`;
     b.innerHTML = `<span class="track"><span class="bar" style="height:${Math.max(3, 28 * Math.max(v, 0) / top)}px"></span></span>`
-      + `<span class="val">${kit ? signed(v, 2) : fmt(v, shock ? f.digits : 1)}</span><span class="d">Day ${k + 1}</span>`;
+      + `<span class="val">${kit ? signed(v, 2) : fmt(v, shock || flood ? f.digits : 1)}</span><span class="d">Day ${k + 1}</span>`;
     b.onclick = () => goTo(k, Math.abs(k - state.t) <= 1);
     return b;
   }));
@@ -381,14 +392,13 @@ function renderPanel(k) {
     $("stats").innerHTML = (s.size < Math.pow(10, -d) ? stat("Largest change", "None", "on this day")   // no reach without a change
       : stat("Largest change", `${signed(s.e.v, d)} ${unitOf(f, s.e.v)}`, at(s.e))
         + stat("Reach", s.far < 0.5 ? "In the box" : `${km(s.far)} km`, "from the shock box"))
-      + (s.state ? stat("Largest change of alert area", `${pct(s.state.before)} → ${pct(s.state.after)}`, s.state.name) : "");
+      + (s.state ? stat("Largest change of alert area", `${pct(s.state.before)} → ${pct(s.state.after)}`, s.state.name) : "")
+      + (s.people ? stat("People in the alert area", `${persons(s.people[0])} → ${persons(s.people[1])}`, "without → with the shock") : "");
   } else if (s.kind === "flood") {
-    const c = s.c, p = s.p;
-    $("stats").innerHTML = stat("Land with an alert", pct(s.area), "twin, watch or higher")
-      + stat("Real alerts found", c.real ? pct(c.found) : "No real alert", c.real ? `${c.hits} of ${c.real} cells` : "")
-      + stat("False alarms", c.twin ? pct(c.falseAlarm) : "None", "twin alerts without a real alert", c.twin && c.falseAlarm > 0.5 ? "hot" : "")
-      + (c.real ? stat("Against “repeat yesterday”", `${signed(100 * (c.found - p.found), 0)} points`, `it finds ${pct(p.found)}`,
-                       c.found >= p.found ? "good" : "bad") : "");
+    const first = state.stats.findIndex(x => x.states.some(t => t.level >= 2));
+    $("stats").innerHTML = stat("People in the alert area", cap(persons(s.people)), `${persons(s.warned)} at warning or higher · 2011 population`)
+      + stat("States under an alert", String(s.states.length), s.states.length ? names(s.states.map(t => t.name)) : "watch or higher")
+      + stat("First flood warning", first < 0 ? "None" : cap(when(first)), "in the twin's 10 days");
   } else {
     const val = key => s.mine.map(x => fmt(x[key] * (RMSE_SCALE[ch] || 1), Math.max(d, 1))).join(" / ") + " " + u;
     const wind = s.mine.length > 1, tone = x => (x >= 0 ? "good" : "bad");
@@ -443,7 +453,7 @@ async function run() {
       else { const [a0, a1, o0, o1] = BOXES[name]; p.box.setBounds([[a0, o0], [a1, o1]]).addTo(p.map); }
     });
     $("v-shock").disabled = name === "none";
-    setView(name !== "none" ? "shock" : state.view === "shock" ? "compare" : state.view, true);
+    setView(name !== "none" ? "shock" : state.view === "shock" ? HOME : state.view, true);
   } catch (e) {
     console.error(e);
     $("status").textContent = `Cannot reach the twin (${e.message}). Start it: python serve.py --port 8000`;

@@ -22,3 +22,17 @@
 **Checking the server locally.** `serve.py` has to use CPU PyTorch, because that is what the grader's sandbox provides. To check it without Accelerate, we run it from a conda-forge environment (outside the repo): PyTorch built against **OpenBLAS** (BSD-3) and LLVM OpenMP (Apache-2.0). There, `BLAS_INFO=open` and `libblas` points to `libopenblas`. This build is compiled with GPU support and weak-links Apple's GPU frameworks, but they are loaded only if code asks for the GPU, which `serve.py` never does.
 
 **Still open.** The numpy in our local environment is linked against Accelerate. Our code uses numpy only for element-wise maths and averages, which don't call Accelerate's BLAS/LAPACK routines. Still, a strictly open stack would use a numpy built on OpenBLAS, for example from conda-forge.
+
+## Population data on the flood page is from 2011
+
+**What we use.** The flood page counts the people who live in the alert area. The numbers come from the WorldPop 2011 estimate for India (1 km grid, CC BY 4.0), which spreads census counts over the map. `demo/make_population.py` adds it up onto the twin's 1° cells.
+
+**Why 2011: recent population data was hard to find.** We looked for newer counts and found none that fit:
+- The Census of India 2011 is still the latest census. The 2021 census was postponed, and no results of a newer census are published.
+- Newer numbers exist only as estimates or projections: WorldPop's yearly grids after 2011, GHSL's population grids, and the official state-level projections. They extend the 2011 counts with models, and the official projections stop at state level, so they cannot show where in a state people live.
+- An open, gridded, census-based map that works offline and that we may bundle in the repo (CC BY 4.0) exists for 2011. So 2011 is the most recent year that rests directly on a census.
+
+**What this means.**
+- The counts are about 15 years old. India's population grew by roughly 15–20% since 2011, and cities grew faster, so the page **undercounts** the people at risk, most of all around fast-growing cities.
+- Each 1° cell is about 110 km wide. Everybody in a cell counts as "in the alert area" when the cell has an alert, so the count is a rough size, not a list of affected towns.
+- The population is a fixed map. The alerts come live from the twin; only the people count uses the fixed map.
