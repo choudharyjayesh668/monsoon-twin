@@ -183,37 +183,3 @@ docker build -t monsoon-twin-demo . && docker run -p 8080:8080 monsoon-twin-demo
 ```
 
 Then open http://localhost:8080.
-
-## Results
-
-We measured these results 1 time, on **2020 and 2021**. The development model did not see these years. It trained on 2005 to 2017, and we set its limits on 2018 and 2019. The final weights use the same procedure on 2005 to 2021 ([ADR 2](docs/adr/0002-ship-weights-retrained-on-all-years.md)).
-
-The scoring functions of the organisers calculated all values, on 721 windows. The organisers do not tell how they calculate the average of the windows. Thus, the table gives the forecast points in 3 ways (A / B / C).
-
-| | Damped persistence | **Monsoon Twin** |
-|---|---|---|
-| Forecast and heavy-rain points (maximum 45), A / B / C | 17.5 / 0.0 / 9.1 | **35.4 / 20.7 / 40.8** |
-| Skill on days 1 / 4 / 8 (B) | +0.034 / −0.019 / −0.024 | **+0.250 / +0.004 / −0.112** |
-| Better than "repeat yesterday" on day 4 (the qualifying test) | +0.202 | **+0.225** |
-| No-blur points (maximum 10) | 10.0 | **10.0** |
-| Shock points (maximum 15) | 11.2 | **13.4** |
-| Correct for 14 days; zero shock changes nothing | 100%; 100% | **100%; 100%** |
-
-Results of the shocks on 61 windows:
-
-| Shock | Stays near its area on day 1 | Moves out by days 4 to 8 | Stays below 5 standard deviations |
-|---|---|---|---|
-| Warmer Bay of Bengal | 100% | 98% | 74% |
-| Weaker Arabian Sea wind | 100% | 54% | 90% |
-| Arabian Sea 2.5 °C warmer | 100% | 77% | 92% |
-
-The server test used a read-only copy and CPU PyTorch on OpenBLAS. The server was ready in 3.1 seconds. A request of 10 days took 0.09 to 0.14 seconds. The schema test of the organisers showed "all checks passed". The repository scan of the organisers gave 15 of 15 points, with no warnings.
-
-## Known limits
-
-- On day 8, the twin is a little worse than the long-term average (skill −0.112).
-- More water vapour can move or increase heavy rain by more than 5 standard deviations (38 mm/day) in single grid points.
-- The weaker-wind shock becomes too small before it moves far enough in approximately half of the windows.
-- On day 8, rain keeps less detail than the other fields. On the demo windows, rain keeps approximately 42% of the real detail. The limit of the organisers is 40%.
-- The requests do not tell the year. Thus, in leap years the long-term average is 1 day late from March. This decreases the skill on days 4 to 8 by approximately 0.004.
-- The twin knows only the 32 × 36 grid. It cannot see weather that comes from outside the grid.
