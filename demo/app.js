@@ -42,7 +42,7 @@ const STOPS = {   // [value in display units, [r, g, b, alpha]]
 const diverging = m => [[-m, [33, 102, 172, 235]], [-m / 2, [120, 175, 215, 205]], [-m * 0.06, [255, 255, 255, 0]],
                         [m * 0.06, [255, 255, 255, 0]], [m / 2, [240, 150, 120, 205]], [m, [178, 24, 43, 235]]];
 const VIEW_TITLE = { compare: "Twin against real weather", forecast: "Twin forecast", shock: "Difference", universes: "Universes" };
-const PANE_TITLE = { compare: ["Real weather", "Twin forecast"], forecast: ["Twin forecast"],
+const PANE_TITLE = { compare: ["Real weather", "Twin forecast"], forecast: [PAGE === "flood" ? "Flood risk" : "Twin forecast"],
                      shock: ["Difference: with the change minus without"], universes: ["Universe A: as it was", "Universe B: with the change"] };
 const WORD = PAGE === "twin" ? "change" : "shock";
 const TWO = { compare: true, universes: true };                     // views with 2 maps side by side
@@ -321,7 +321,7 @@ function pin(pane, e, label) {
 }
 function updateMarks(k) {
   P.forEach(p => p.marks.clearLayers());
-  if (!state.base || !isDiff()) return;
+  if (!state.base || !isDiff() || PAGE === "flood") return;
   const f = FIELDS[CH()], s = state.stats[k], pane = P[state.view === "universes" ? 1 : 0];   // on the changed universe
   if (s.size >= Math.pow(10, -f.digits)) pin(pane, s.e, `<b>Largest change</b> ${signed(s.e.v, f.digits)} ${unitOf(f, s.e.v)}`);
 }
@@ -563,10 +563,9 @@ async function run() {
       if (!spec) p.box.remove();
       else { const [a0, a1, o0, o1] = spec.box; p.box.setBounds([[a0, o0], [a1, o1]]).addTo(p.map); }
     });
-    if (PAGE === "flood") {
-      $("v-shock").disabled = !spec;
-      setView(spec ? "shock" : state.view === "shock" ? HOME : state.view, true);
-    } else setView(state.view, true);
+    if (glide) { cancelAnimationFrame(glide); glide = null; }
+    state.t = aim = 0;                                              // a new run starts at the first day
+    setView(state.view, true);
   } catch (e) {
     console.error(e);
     $("status").textContent = `Cannot reach the twin (${e.message}). Start it: python serve.py --port 8000`;
@@ -606,7 +605,7 @@ WINDOWS.forEach((w, i) => $("win").add(new Option(w.label, i)));
 if (document.body.dataset.page === "flood") $("win").value = WINDOWS.findIndex(w => w.label.startsWith("Flood:"));
 $("win").onchange = () => run();
 if ($("shock")) $("shock").onchange = () => run();
-$("field").onchange = () => { buildTimeline(); draw(state.t); setDay(Math.floor(state.t), true); };
+$("field").onchange = () => { if (glide) { cancelAnimationFrame(glide); glide = null; } state.t = aim = 0; buildTimeline(); draw(0); setDay(0, true); };
 $("wind").onchange = () => updateWind(Math.floor(state.t));
 $("prev").onclick = () => stepBy(-1); $("next").onclick = () => stepBy(1);
 document.addEventListener("keydown", e => {                         // the arrow keys step too, outside form fields

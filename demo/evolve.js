@@ -8,7 +8,7 @@ const Evolve = (() => {
   const doy0 = () => { const [s, c] = W().doy_sincos; return Math.atan2(s, c) * 365 / (2 * Math.PI); };
   const sc = m => { const a = 2 * Math.PI * (doy0() + m) / 365; return [Math.sin(a), Math.cos(a)]; };   // m days after the last real day
   const dateOf = n => { const d = new Date(W().dates[0] + "T00:00:00"); d.setDate(d.getDate() + n - 1); return d; };
-  const evCh = () => $("ev-field").value;
+  const evCh = () => "7";                                       // flood risk only
   const clone = x => JSON.parse(JSON.stringify(x));
 
   function universe() { return { days: clone(W().init_states), lv: [], alerts: [], people: [] }; }
@@ -92,7 +92,6 @@ const Evolve = (() => {
   $("ev-play").onclick = play;
   $("ev-apply").onclick = apply;
   $("ev-reset").onclick = reset;
-  $("ev-field").onchange = render;
   $("win").addEventListener("change", () => { if (ev.on) reset(); });
   return { on: () => ev.on };
 })();
