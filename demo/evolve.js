@@ -3,7 +3,7 @@
 // per copy (steps = 1); the twin reads its own last 3 days and calculates the next. "Before" gets no change; "After" gets
 // the changes you apply, at any day. Each day: the people and the states at flood risk, before and after. Uses app.js (simulate, paint, P, state ...) and twin-builder.js (Builder).
 const Evolve = (() => {
-  const MAX = 30, ev = { on: false, busy: false, n: 0, k: 0, A: null, B: null, events: [] };
+  const MAX = DAYS, ev = { on: false, busy: false, n: 0, k: 0, A: null, B: null, events: [] };
   const STOP = { 7: STOPS.flood, 1: STOPS.rain, 0: STOPS.temp, 6: STOPS.speed, 5: STOPS.tcwv };
   const doy0 = () => { const [s, c] = W().doy_sincos; return Math.atan2(s, c) * 365 / (2 * Math.PI); };
   const sc = m => { const a = 2 * Math.PI * (doy0() + m) / 365; return [Math.sin(a), Math.cos(a)]; };   // m days after the last real day
