@@ -140,6 +140,7 @@ def emit(x: np.ndarray, rain_cut: np.ndarray) -> np.ndarray:
     x[:, :, TP] = tp + on * np.maximum(HEAVY_RAIN + 0.01 - tp, 0)
     x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)          # last line of defence; the model makes none
     x[:, :, TP] = np.maximum(x[:, :, TP], 0)
+    x[:, :, 5] = np.maximum(x[:, :, 5], 0)                          # water vapour (tcwv) is never negative either
     x[:, :, 0] = np.clip(x[:, :, 0], *T2M_RANGE)
     return x.astype("f4")
 

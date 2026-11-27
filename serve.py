@@ -52,7 +52,7 @@ async def simulate(request: Request):
         pert = body.get("perturbation")
         out = MODEL.rollout(_array(body["init_states"]), body["doy_sincos"], int(body["steps"]),
                             None if pert is None else _array(pert))
-    except (KeyError, TypeError, ValueError) as e:
+    except (AttributeError, KeyError, TypeError, ValueError) as e:     # AttributeError: a body that is not an object
         return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=422)
     # A ready-made response skips FastAPI's per-element encoder, which is slow on 69,120 numbers.
     return JSONResponse({"rollout": out.tolist(), "inference_ms": (time.perf_counter() - t0) * 1000.0})
