@@ -10,7 +10,7 @@
 <body>
 <header class="top">
   <a class="brand" href="index.html">Monsoon Twin</a>
-  <nav aria-label="Pages"><a href="index.html">Map</a><a href="flood.html">Flood risk</a><a href="how.html" aria-current="page">How it works</a><a href="results.html">Results</a></nav>
+  <nav aria-label="Pages"><a href="index.html">Forecast</a><a href="twin.html">Climate twin</a><a href="flood.html">Flood risk</a><a href="how.html" aria-current="page">How it works</a><a href="results.html">Results</a></nav>
 </header>
 <main class="page">
   <h1>How the twin works</h1>
@@ -31,28 +31,35 @@
          in 1 day. A change cannot jump across India.</p>
     </div>
     <div class="block">
-      <h2>What a shock is</h2>
-      <p>There are 9 weather windows: monsoon onset, heavy rain, heatwave, cyclone, winter rain and 4 past floods. A shock is a change to the last day of weather. For example, the shock makes the Bay of Bengal 3 °C warmer.</p>
-      <p>The twin calculates the weather with the shock and without the shock. The difference shows the effect of the shock.</p>
+      <h2>The 3 pages</h2>
+      <p><strong>Forecast</strong> shows how good the twin is. It starts from 3 real days and calculates the next 10
+         days. Then it compares them with the real weather.</p>
+      <p><strong>Climate twin</strong> shows what-if universes. It starts from the same 3 real days twice: universe A
+         as it was, and universe B with a change to the last day, for example a Bay of Bengal 3 °C warmer.</p>
+      <p><strong>Flood risk</strong> changes the forecast of the twin into flood alerts for the states, and into the
+         number of people who live in the alert area.</p>
     </div>
     <div class="block">
-      <h2>How to use the map</h2>
+      <h2>How to use the Climate twin page</h2>
       <ol>
-        <li>Select a weather window.</li>
-        <li>Select a shock, or select "No shock".</li>
-        <li>Select a field, for example rain.</li>
-        <li>Select a view: Compare, Forecast or Shock.</li>
-        <li>Click the arrow buttons, or push the ← and → keys, to go 1 day back or forward.</li>
+        <li>Select a starting state: 1 of 9 real 3-day periods.</li>
+        <li>Select a change to the start: 1 of the shocks of the organisers, or "Your own change".</li>
+        <li>For your own change, select where, what and how much. "Where I click on the map" puts an 8° × 8° box
+            where you click. A change of 0 must change nothing, and the twin agrees.</li>
+        <li>Select a field and a view: <strong>Two universes</strong> side by side, or the <strong>Difference</strong>
+            (red: more, blue: less).</li>
+        <li>Click the arrow buttons, or push the ← and → keys, to go 1 day back or forward. The panel tells the
+            largest change, the values at that point in the 2 universes, and how far the effect has moved from the box.</li>
       </ol>
     </div>
     <div class="block">
-      <h2>What the views show</h2>
+      <h2>What the Forecast page shows</h2>
       <p><strong>Compare</strong> shows 2 maps side by side: the real weather on the left and the twin forecast on the
          right. The 2 maps use the same colours and move together. The panel below the maps shows the skill of each day. The
          skill uses the method of the organisers' kit: 1 minus the RMSE of the twin, divided by the RMSE of the better
-         simple forecast ("repeat yesterday" or the long-term average). Above 0, the twin is better than both. <strong>Forecast</strong> shows the twin forecast only. <strong>Shock</strong> shows the change that
-         the shock causes: red shows an increase, blue shows a decrease.</p>
-      <p>Move the pointer over the map to see the state or union territory and the values at that point.</p>
+         simple forecast ("repeat yesterday" or the long-term average). Above 0, the twin is better than both.
+         <strong>Forecast</strong> shows the twin forecast only.</p>
+      <p>Move the pointer over a map to see the state or union territory and the values at that point.</p>
     </div>
     <div class="block">
       <h2>Flood risk</h2>
@@ -62,8 +69,14 @@
          <strong>warning</strong> (99%, and more than 70 mm) and <strong>severe</strong> (99.7%, and more than 100 mm).</p>
       <p>The twin forecast becomes weaker at its peaks after some days. Thus, the twin uses lower limits on later days.
          The limits make a twin alert as rare as a real alert.</p>
-      <p>Compare shows the alerts from the real rain and from the twin. A shock shows how the alert area of each state
-         changes. 4 windows show past floods. The "Past floods: scores" button compares the alerts for all windows.</p>
+      <p>A state is under an alert when at least 10% of its area has that level. The page names these states and
+         tells how many days ahead the alert is. Very small union territories are not named, because the grid is too
+         coarse for them.</p>
+      <p>The page also shows how many people live in the alert area. The population comes from WorldPop 2011 (CC BY 4.0). It is a fixed map from 2011, thus the number of people today is larger.</p>
+      <p>The page shows the alerts of the twin forecast only. A shock shows how the alert area of each state
+         changes. 4 windows show past floods. The "Alert scores" button compares the alerts for all windows.</p>
+      <p>The <strong>Early warning</strong> tab starts the twin 7, 6 … 1 days before 4 past floods. It shows how many days
+         before the peak the twin gave a flood warning for the state.</p>
       <p><strong>Limits:</strong> the module uses rain only. It does not know rivers, dams, drainage or where people
          live. Each grid point is approximately 110 km wide, thus a flood in one city can be too small to see.</p>
     </div>

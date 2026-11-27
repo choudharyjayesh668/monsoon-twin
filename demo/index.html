@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Monsoon Twin · Map</title>
+<title>Monsoon Twin · Forecast</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="vendor/leaflet-velocity.min.css">
@@ -13,19 +13,11 @@
 <header class="top">
   <a class="brand" href="index.html">Monsoon Twin</a>
   <div class="status" id="status" role="status"></div>
-  <nav aria-label="Pages"><a href="index.html" aria-current="page">Map</a><a href="flood.html">Flood risk</a><a href="how.html">How it works</a><a href="results.html">Results</a></nav>
+  <nav aria-label="Pages"><a href="index.html" aria-current="page">Forecast</a><a href="twin.html">Climate twin</a><a href="flood.html">Flood risk</a><a href="how.html">How it works</a><a href="results.html">Results</a></nav>
 </header>
 
 <div class="toolbar" role="toolbar" aria-label="Map controls">
   <label>Weather window <select id="win"></select></label>
-  <label>Shock
-    <select id="shock">
-      <option value="none">No shock</option>
-      <option value="warm_ocean">Warmer Bay of Bengal (+3 °C, +15% moisture)</option>
-      <option value="monsoon_stall">Weaker Arabian Sea wind (−40%)</option>
-      <option value="arabian_heat">Warmer Arabian Sea (+2.5 °C)</option>
-    </select>
-  </label>
   <label>Field
     <select id="field">
       <option value="1">Rain</option><option value="0">Temperature</option><option value="6">Wind speed</option>
@@ -35,7 +27,6 @@
   <div class="seg" role="group" aria-label="View">
     <button data-view="compare" aria-pressed="true">Compare</button>
     <button data-view="forecast" aria-pressed="false">Forecast</button>
-    <button data-view="shock" id="v-shock" aria-pressed="false" disabled>Shock</button>
   </div>
   <div class="dayrow">
     <button class="step" id="prev" aria-label="Previous day" title="Previous day (←)">←</button>

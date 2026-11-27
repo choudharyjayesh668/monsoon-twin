@@ -13,10 +13,14 @@
 <header class="top">
   <a class="brand" href="index.html">Monsoon Twin</a>
   <div class="status" id="status" role="status"></div>
-  <nav aria-label="Pages"><a href="index.html">Map</a><a href="flood.html" aria-current="page">Flood risk</a><a href="how.html">How it works</a><a href="results.html">Results</a></nav>
+  <nav aria-label="Pages"><a href="index.html">Forecast</a><a href="twin.html">Climate twin</a><a href="flood.html" aria-current="page">Flood risk</a><a href="how.html">How it works</a><a href="results.html">Results</a></nav>
 </header>
 
 <div class="toolbar" role="toolbar" aria-label="Map controls">
+  <div class="seg tabs" role="tablist" aria-label="Flood risk views">
+    <button role="tab" id="tab-map" aria-selected="true" aria-controls="wrap">Map</button>
+    <button role="tab" id="tab-ladder" aria-selected="false" aria-controls="ladder">Early warning</button>
+  </div>
   <label>Weather window <select id="win"></select></label>
   <label>Shock
     <select id="shock">
@@ -28,8 +32,7 @@
   </label>
   <input type="hidden" id="field" value="7">
   <div class="seg" role="group" aria-label="View">
-    <button data-view="compare" aria-pressed="true">Compare</button>
-    <button data-view="forecast" aria-pressed="false">Forecast</button>
+    <button data-view="forecast" aria-pressed="true">Forecast</button>
     <button data-view="shock" id="v-shock" aria-pressed="false" disabled>Shock</button>
   </div>
   <div class="dayrow">
@@ -38,12 +41,24 @@
     <button class="step" id="next" aria-label="Next day" title="Next day (→)">→</button>
   </div>
   <label class="check"><input type="checkbox" id="wind" checked> Wind flow</label>
-  <button class="scores" id="open-scores" type="button">Past floods: scores</button>
+  <button class="scores" id="open-scores" type="button">Alert scores</button>
 </div>
 
-<div class="mapwrap two" id="wrap">
+<div class="mapwrap one" id="wrap">
+  <section class="tabpanel" id="ladder" role="tabpanel" aria-labelledby="tab-ladder" hidden>
+    <div class="inner">
+      <h2>How early could the twin have warned?</h2>
+      <p class="lede" id="ladder-sum">The twin calculates 28 forecasts…</p>
+      <p class="note">For each past flood, the page starts the twin 7, 6 … 1 days before the peak, now, and reads the alert
+         level of the state on the peak day. "Warned N days before" means that every start from N days before the peak gave
+         a warning or higher.</p>
+      <div id="ladders"></div>
+      <p class="note">The twin used these years during training, thus the lead times are better than for a new flood.
+         Each grid point is approximately 110 km wide: the alert is for the state, not for one valley or city.</p>
+    </div>
+  </section>
   <div class="pane" id="paneA">
-    <div class="maplabel" id="title0">Real weather</div>
+    <div class="maplabel" id="title0">Twin forecast</div>
     <div class="map" id="mapA" role="application" aria-label="Map of the real weather, or of the selected view"></div>
   </div>
   <div class="pane" id="paneB">
@@ -72,7 +87,7 @@
 
   <div class="card tip" id="tip" hidden></div>
   <div class="credit">Borders: <a href="https://github.com/datameet/maps">DataMeet</a> (India, states, CC BY 4.0) ·
-    <a href="https://www.naturalearthdata.com">Natural Earth</a> · <a href="https://leafletjs.com">Leaflet</a> · leaflet-velocity</div>
+    <a href="https://www.naturalearthdata.com">Natural Earth</a> · Population: <a href="https://www.worldpop.org">WorldPop</a> 2011 (CC BY 4.0) · <a href="https://leafletjs.com">Leaflet</a> · leaflet-velocity</div>
 </div>
 
 <dialog id="scores" aria-labelledby="scores-title">
@@ -98,8 +113,11 @@
 <script src="data/india.js"></script>
 <script src="windows.js"></script>
 <script src="data/flood.js"></script>
+<script src="data/population.js"></script>
+<script src="data/ladders.js"></script>
 <script src="flood.js"></script>
 <script src="app.js"></script>
 <script src="flood-scores.js"></script>
+<script src="flood-ladder.js"></script>
 </body>
 </html>

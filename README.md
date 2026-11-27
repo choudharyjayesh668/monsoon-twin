@@ -1,141 +1,187 @@
 # Monsoon Twin
 
-A fast digital twin of India's daily weather for Track 2, "Multiverse of Monsoon". From the last 3 days of India's state, it rolls temperature, rain, wind, pressure and moisture forward one day at a time on the 32 × 36 grid. A shock added to the last day, such as a warmer Bay of Bengal, spreads outward step by step.
+Monsoon Twin is a digital twin of the daily weather of India. It is our entry for Track 2, "Multiverse of Monsoon".
 
-- **Model**: a small convolutional network that predicts each day's change of the anomaly from climatology. It only sees 6 cells around each point per day, so a local shock spreads at most 6 cells a day. See [ADR 1](docs/adr/0001-local-one-day-step.md).
-- **Server**: `serve.py`, offline, CPU only, the API from the organisers' contract.
-- **Dashboard**: `dashboard/index.html`, which calls the live server.
+The twin uses the last 3 days of weather on a grid of 32 × 36 points. Each point is 1 degree wide. The twin calculates temperature, rain, wind, sea-level pressure and water vapour. It calculates 1 day at a time, for a maximum of 14 days. Each new day comes from the days before it.
 
-## Run the server
+You can also change the last day, for example make the Bay of Bengal 3 °C warmer. The twin then calculates a second "universe" with this change. The change starts near its area and moves out, step by step.
 
-```bash
-pip install torch numpy fastapi uvicorn
-python serve.py --port 8000
-```
+## Contents of the repository
 
-It listens on `0.0.0.0`, loads `weights/twin.pt` before answering, and needs nothing from the network. It writes nothing next to the code.
+| Item | Function |
+|---|---|
+| `serve.py` | The HTTP server. The organisers start it. It uses only `twin.py`. |
+| `twin.py` | The model: the network, the long-term average, the day-by-day calculation and the output limits. |
+| `weights/twin.pt` | The trained weights, the long-term average and the scales (13 MB). |
+| `train.py` | The training procedure. |
+| `mlx_twin.py` | A copy of the network for training on the Apple GPU. |
+| `evaluate.py` | The local test with the scoring functions of the organisers. |
+| `tests/` | The automatic tests. |
+| `dashboard/` | A small map page. |
+| `demo/` | The demo site: Forecast, Climate twin, Flood risk, How it works and Results. |
+| `brief/` | The 2-page brief (`brief.pdf`) and its LaTeX source. To make the PDF again, run `latexmk -pdf brief.tex`. |
+| `docs/adr/` | The design decisions. |
+| `challenges.md` | The problems that we had, and what we did. |
 
-- `POST /health` returns `{"status": "ready", "model_name": "monsoon-twin"}`.
-- `POST /simulate` takes `{"init_states": [3,6,32,36], "doy_sincos": [sin, cos], "steps": 1..14, "perturbation": null | [6,32,36]}` and returns `{"rollout": [steps,6,32,36], "inference_ms": ...}`. Everything is in physical units: K, mm/day, m/s, m/s, Pa, kg/m².
+## How to start the server
 
-## Train
+The organisers use this procedure. The server needs no internet connection.
 
-Training reads the organisers' data from the kit folder next to this repo (`../yug-monsoon-kit-main/release/india_climate_train.nc`), or from `--data`. The data file is never copied into this repo.
+1. Install Python 3. We tested the server with Python 3.12.
+2. Install the libraries:
+   ```bash
+   pip install torch numpy fastapi uvicorn
+   ```
+3. Go to the root folder of the repository.
+4. Start the server:
+   ```bash
+   python serve.py --port 8000
+   ```
+5. Wait for the server to load the weights. This takes approximately 3 seconds.
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install mlx torch numpy xarray netCDF4 fastapi uvicorn httpx pytest
-pip install ../yug-monsoon-kit-main/release/monsoon_r1_kit-1.0.0-py3-none-any.whl   # scoring, for evaluate.py and tests
+The server listens on `0.0.0.0`. It loads `weights/twin.pt` before it answers. It does not write files next to the code.
 
-# development run: train on 2005-2017, watch the loss on 2018-2019
-python train.py --years 2005-2017 --val-years 2018-2019 --out /tmp/dev.pt
-python train.py --tune-rain /tmp/dev.pt --val-years 2018-2019 --out /tmp/dev.pt     # heavy-rain cutoffs
-# the shipped weights: the same recipe on all years, keeping the dev run's heavy-rain cutoffs
-python train.py --years 2005-2021 --rain-cut-from /tmp/dev.pt
-```
+The server has 2 routes:
 
-Training runs on the Apple GPU through [MLX](https://github.com/ml-explore/mlx) (open source, MIT), in `mlx_twin.py`, a layer-for-layer copy of the served network. The weights are saved as the PyTorch checkpoint `serve.py` loads, and a test checks that both give the same forecast. `netCDF4` (MIT licence) is needed only to read the data file.
+- `POST /health` gives `{"status": "ready", "model_name": "monsoon-twin"}`.
+- `POST /simulate` receives `{"init_states": [3,6,32,36], "doy_sincos": [sin, cos], "steps": 1..14, "perturbation": null | [6,32,36]}`. It gives `{"rollout": [steps,6,32,36], "inference_ms": ...}`.
 
-## Evaluate
+All values are in physical units: K, mm/day, m/s, m/s, Pa and kg/m². The channels are in this sequence: `t2m`, `tp`, `u10`, `v10`, `msl`, `tcwv`.
+
+**Note:** A request of 10 days takes 0.09 to 0.14 seconds on a laptop CPU. The limit of the organisers is 5 seconds.
+
+## How to train the model
+
+Training reads the data file of the organisers. The default location is `../yug-monsoon-kit-main/release/india_climate_train.nc`, next to this repository. To use a different location, add `--data <path>`.
+
+**Caution:** Do not copy the data file into this repository. The repository scan of the organisers gives a warning for climate data files.
+
+**Note:** Training uses [MLX](https://github.com/ml-explore/mlx) (open source, MIT) on the GPU of an Apple Silicon computer. Thus, training needs a Mac with an Apple Silicon chip. The server does not need a Mac. The training procedure saves the weights as a PyTorch file, and the server reads this file on any CPU.
+
+1. Make a Python environment:
+   ```bash
+   python -m venv .venv && source .venv/bin/activate
+   ```
+2. Install the libraries:
+   ```bash
+   pip install mlx torch numpy xarray netCDF4 fastapi uvicorn httpx pytest
+   ```
+3. Install the kit of the organisers. `evaluate.py` and the tests use it:
+   ```bash
+   pip install ../yug-monsoon-kit-main/release/monsoon_r1_kit-1.0.0-py3-none-any.whl
+   ```
+4. Train the development model on 2005 to 2017. Show the loss on 2018 and 2019:
+   ```bash
+   python train.py --years 2005-2017 --val-years 2018-2019 --out /tmp/dev.pt
+   ```
+5. Set the heavy-rain limits of the development model on 2018 and 2019:
+   ```bash
+   python train.py --tune-rain /tmp/dev.pt --val-years 2018-2019 --out /tmp/dev.pt
+   ```
+6. Train the final model on all years, 2005 to 2021. Use the heavy-rain limits from step 5:
+   ```bash
+   python train.py --years 2005-2021 --rain-cut-from /tmp/dev.pt
+   ```
+
+Step 6 writes `weights/twin.pt`. Each training run takes approximately 19 minutes.
+
+**Note:** `mlx_twin.py` is a copy of the network in `twin.py`, layer for layer. A test makes sure that the 2 copies give the same forecast.
+
+## How to test the model
+
+1. Run the automatic tests:
+   ```bash
+   pytest
+   ```
+2. Start the server:
+   ```bash
+   python serve.py --port 8000 &
+   ```
+3. Run the schema test of the organisers:
+   ```bash
+   python -m monsoon_r1.schema_validator http://localhost:8000
+   ```
+4. Make sure that the schema test shows "all checks passed".
+
+## How to score the model
+
+Run `evaluate.py` on a weights file:
 
 ```bash
 python evaluate.py /tmp/dev.pt --years 2018 2019 --baseline --dynamics --events
 ```
 
-This scores a model with the organisers' scoring functions:
-- forecast skill and heavy-rain skill at days 1, 4 and 8, against the better of persistence and climatology;
-- day-8 blur;
-- 14-step validity;
-- the null shock;
-- three shocks: the grader's warm Bay of Bengal and weaker Arabian Sea wind, plus a +2.5 °C Arabian Sea;
-- windows like the five hidden ones.
+`evaluate.py` uses the scoring functions of the organisers. It calculates:
 
-The grader's averaging across windows is not published, so skill is reported three ways (see [GLOSSARY.md](GLOSSARY.md)).
+- the forecast skill and the heavy-rain skill on days 1, 4 and 8, against the better of "repeat yesterday" and the long-term average;
+- the detail of the forecast on day 8 (no blur);
+- the limits for 14 days;
+- the zero shock;
+- 3 shocks: a warmer Bay of Bengal, a weaker Arabian Sea wind and an Arabian Sea 2.5 °C warmer;
+- windows that are similar to the 5 hidden test windows.
 
-## Test
+The organisers do not tell how they calculate the average of the windows. Thus, `evaluate.py` gives the skill in 3 ways. [GLOSSARY.md](GLOSSARY.md) tells the 3 ways.
 
-```bash
-pytest
-python serve.py --port 8000 &  python -m monsoon_r1.schema_validator http://localhost:8000
-```
+## How to use the demo
 
-## Dashboard
+The demo is a website in `demo/`. Each forecast comes from the server at the time of the request. The demo does not show saved results.
 
-Start the server, then open `dashboard/index.html` in a browser. It sends a sample 3-day window to `/simulate`, with or without a shock, and maps any field on any day. It can also map the difference between the shocked and the unshocked world.
+1. Start the server:
+   ```bash
+   python serve.py --port 8000 &
+   ```
+2. Start the website:
+   ```bash
+   python -m http.server 5173 -d demo
+   ```
+3. Open http://localhost:5173 in a web browser.
 
-## Demo
+The demo has 5 pages:
 
-A local demo site for people, in `demo/`, with four pages: a full-screen **Map**, a full-screen **Flood risk** page (the impact module), **How it works** and **Results**.
+- **Forecast** (`index.html`) shows the twin forecast and the real weather side by side. The panel shows the skill of each day. The skill uses the method of the kit of the organisers.
+- **Climate twin** (`twin.html`) shows 2 universes from the same 3 real days. Universe A is as it was. Universe B has a change to the last day. You can select a change of the organisers, or make your own change: a region, a field and an amount. A change of 0 does not change the forecast.
+- **Flood risk** (`flood.html`) changes the rain forecast into flood alerts for each state. It shows the number of people in the alert area. Its **Early warning** tab starts the twin 7 to 1 days before 4 past floods.
+- **How it works** (`how.html`) tells how the twin and the pages work.
+- **Results** (`results.html`) shows the test results.
 
-- **Compare** shows the twin's forecast and the real weather side by side, on one colour scale, with synced pan and zoom. Five real windows match the five kinds of hidden test: monsoon onset, heavy rain, heatwave, cyclone and winter rain.
-- A panel over the maps gives each day's **skill exactly as the organisers' kit scores it**: 1 − RMSE / min(RMSE of "repeat yesterday", RMSE of climatology), latitude-weighted, per channel, for all 6 channels and for the field on the map. The twin's RMSE is computed live in the browser; the climatology's RMSE ships with each window, made by `demo/make_windows.py` with the kit's own `rmse_lat` and `climatology`. A clickable strip shows all 10 days.
-- India's states and union territories are drawn as India shows them. Hovering names the state and reads the twin, real and difference values there.
-- Smooth colour fields, animated wind flow, slow-motion play, and a **Shock** view of what a shock changes.
-- **Flood risk** (`flood.html`), the impact module (`demo/flood.js`): a page that turns the twin's live rain forecast into flood alerts (watch, warning, severe) per cell and per state. Each cell's 3-day rain is compared with what is rare for that cell and month in 2005–2021, with a floor in mm. The twin's thresholds are lowered by lead day, because its forecast peaks weaken. Compare shows real against twin alerts, Shock shows which state's alert area a shock changes most, and four past floods (Uttarakhand 2013, Jammu and Kashmir 2014, Kerala 2018, Kolhapur 2019) are extra windows. Its "Past floods: scores" button scores the alerts of every window live. It is a rain-only hazard index: no rivers, dams, drainage or population.
-- Every forecast comes live from the twin server; nothing is pre-rendered. The text follows ASD-STE100 Simplified Technical English.
+The small map page in `dashboard/` also uses the server. To use it, start the server and open `dashboard/index.html`.
 
-```bash
-python serve.py --port 8000 &
-python -m http.server 5173 -d demo      # then open http://localhost:5173
-```
-
-It runs fully offline. Everything it uses is bundled in `demo/`:
-- libraries in `demo/vendor/`, with their licences: [Leaflet](https://leafletjs.com) (BSD-2) and [leaflet-velocity](https://github.com/onaci/leaflet-velocity) (CSIRO BSD/MIT-style);
-- India, state and union-territory borders from the [DataMeet India community](https://github.com/datameet/maps) (CC BY 4.0);
-- neighbouring countries from [Natural Earth](https://www.naturalearthdata.com) (public domain).
-
-`demo/make_map.py` rebuilds the border files from those sources, and `demo/make_windows.py` rebuilds the sample windows from the training data (it needs the kit wheel, for the climatology RMSE). `demo/make_flood.py` rebuilds the flood thresholds in `demo/data/flood.js` (it runs the twin, about 3 minutes on a laptop CPU).
+**Note:** The demo works without an internet connection. All libraries and maps are in `demo/`.
 
 On a phone, the page scrolls and the two maps stack, with the legend above them and the numbers panel below. A vertical swipe scrolls the page instead of panning the map; the +/− buttons zoom.
 
-### Host it on Railway
+### Data and licences of the demo
 
-The `Dockerfile` runs the twin server and the demo site in one container, on open-source maths only (conda-forge PyTorch on OpenBLAS). Inside, `serve.py` listens on port 8000. `demo/serve_demo.py` serves the site on Railway's public port and passes `/health` and `/simulate` to the twin. `railway.json` tells Railway to build the Dockerfile.
+- [Leaflet](https://leafletjs.com) (BSD-2) and [leaflet-velocity](https://github.com/onaci/leaflet-velocity) (CSIRO BSD/MIT-style) are in `demo/vendor/`, with their licences.
+- The borders of India, its states and union territories come from the [DataMeet India community](https://github.com/datameet/maps) (CC BY 4.0). They show India as the Survey of India shows it.
+- The borders of the other countries come from [Natural Earth](https://www.naturalearthdata.com) (public domain).
+- The population on the Flood risk page comes from [WorldPop](https://www.worldpop.org) 2011, India, 1 km (CC BY 4.0). It is 2011 data. [challenges.md](challenges.md) tells why.
 
-1. Push the repo to GitHub.
-2. On [railway.com](https://railway.com): **New Project → Deploy from GitHub repo →** this repo. Railway builds the Dockerfile; the first build takes a few minutes.
-3. **Settings → Networking → Generate Domain**, then open the link.
+### How to make the demo data again
 
-The same image runs locally: `docker build -t monsoon-twin-demo . && docker run -p 8080:8080 monsoon-twin-demo`, then open http://localhost:8080.
-
-## Results
-
-Measured once on **2020–2021**, held out from training and tuning: the development model, trained on 2005–2017 and tuned on 2018–2019. The shipped weights use the same recipe retrained on 2005–2021 ([ADR 2](docs/adr/0002-ship-weights-retrained-on-all-years.md)). Scored with the organisers' functions on 721 windows. The grader's way of averaging across windows is not published, so forecast points are shown three ways.
-
-| | Damped persistence | **Monsoon twin** |
+| Script | Output | Requirement |
 |---|---|---|
-| Forecast + heavy-rain points (of 45), readings A / B / C | 17.5 / 0.0 / 9.1 | **35.4 / 20.7 / 40.8** |
-| Skill at days 1 / 4 / 8 (reading B) | +0.034 / −0.019 / −0.024 | **+0.250 / +0.004 / −0.112** |
-| Day 4 vs persistence (qualifying gate) | +0.202 | **+0.225** |
-| No-blur points (of 10) | 10.0 | **10.0** |
-| Shock points (of 15) | 11.2 | **13.4** |
-| Valid for 14 steps; null shock unchanged | 100%; 100% | **100%; 100%** |
+| `demo/make_map.py` | The border files | The DataMeet and Natural Earth files |
+| `demo/make_windows.py` | The 9 weather windows and the early-warning days (`demo/data/ladders.js`) | The data file and the kit of the organisers |
+| `demo/make_flood.py` | The flood limits (`demo/data/flood.js`) | The data file. It runs the twin for approximately 3 minutes. |
+| `demo/make_population.py <file>` | The population grid (`demo/data/population.js`) | `rasterio` (BSD-3) and the WorldPop file |
 
-Shock pass rates on 61 windows:
+Download the WorldPop file manually from `https://data.worldpop.org/GIS/Population/Global_2000_2020_1km/2011/IND/ind_ppp_2011_1km_Aggregated.tif`. The script does not use the internet.
 
-| Shock | Local on day 1 | Spreads by days 4–8 | Stays within 5 std |
-|---|---|---|---|
-| Warm Bay of Bengal | 100% | 98% | 74% |
-| Weaker Arabian Sea wind | 100% | 54% | 90% |
-| +2.5 °C Arabian Sea | 100% | 77% | 92% |
+### How to put the demo on Railway
 
-Known weak spots:
-- Extra moisture can move or strengthen heavy-rain cells by more than 5 std (38 mm/day) in single cells.
-- The weaker-wind shock fades before it has spread far enough in about half the windows.
-- In leap years the climatology is one day late from March on, because the year is never sent (about −0.004 skill at days 4–8).
+The `Dockerfile` runs the server and the demo site in 1 container. It uses only open-source maths libraries: PyTorch from conda-forge, on OpenBLAS. In the container, `serve.py` listens on port 8000. `demo/serve_demo.py` shows the site on the public port of Railway. It sends `/health` and `/simulate` to the server. `railway.json` tells Railway to use the `Dockerfile`.
 
-Server (`python serve.py --port 8000`, read-only copy, open-source CPU PyTorch on OpenBLAS): ready in 3.1 s; a 10-step request takes 0.09–0.14 s. The organisers' schema validator reports all checks passed, and the repo scan scores 15/15 with no flags.
+1. Push the repository to GitHub.
+2. On [railway.com](https://railway.com), select **New Project → Deploy from GitHub repo**.
+3. Select this repository. Railway builds the `Dockerfile`. The first build takes some minutes.
+4. Select **Settings → Networking → Generate Domain**.
+5. Open the link.
 
-## Layout
+To run the same container on your computer:
 
-| Path | What |
-|---|---|
-| `twin.py` | The model: network, climatology, rollout, output guards |
-| `serve.py` | The HTTP server (imports only `twin.py`) |
-| `train.py` | Training (MLX on the GPU) |
-| `mlx_twin.py` | The MLX copy of the network, for training and local evaluation |
-| `evaluate.py` | Local scoring with the organisers' functions |
-| `weights/twin.pt` | The shipped weights, climatology and scales |
-| `dashboard/` | The map page |
-| `tests/` | Tests |
-| `docs/adr/` | Design decisions |
+```bash
+docker build -t monsoon-twin-demo . && docker run -p 8080:8080 monsoon-twin-demo
+```
+
+Then open http://localhost:8080.
