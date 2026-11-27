@@ -97,9 +97,9 @@ yesterday'' and the long-term average. Above 0, the twin is better than both (Fi
 
 \begin{center}
 \begin{tikzpicture}
-\begin{axis}[ybar, width=\linewidth, height=3.6cm, bar width=10pt, ymin=-0.17, ymax=0.32,
+\begin{axis}[ybar, width=\linewidth, height=4.1cm, bar width=10pt, ymin=-0.3, ymax=0.37,
   symbolic x coords={Day 1,Day 4,Day 8}, xtick=data, enlarge x limits=0.22,
-  ticklabel style={font=\scriptsize}, ytick={-0.1,0,0.1,0.2,0.3}, yticklabel style={/pgf/number format/fixed},
+  ticklabel style={font=\scriptsize}, ytick={-0.2,-0.1,0,0.1,0.2,0.3}, yticklabel style={/pgf/number format/fixed},
   axis line style={line}, tick style={line}, ymajorgrids, grid style={line!50},
   legend style={font=\tiny, draw=none, at={(0.5,-0.2)}, anchor=north, legend columns=3, /tikz/every even column/.append style={column sep=6pt}},
   legend image code/.code={\fill[#1] (0cm,-0.08cm) rectangle (0.22cm,0.1cm);},
@@ -144,8 +144,8 @@ yesterday'' and the long-term average. Above 0, the twin is better than both (Fi
 \end{minipage}\hfill
 \begin{minipage}[t]{0.495\linewidth}
   \includegraphics[width=\linewidth]{figures/flood.png}
-  \fig{Figure 5. Flood risk page, Uttarakhand 2013, day 3: ``Flood warning for Uttarakhand and Uttar Pradesh in
-  3 days. About 95 million people live in the alert area.''}
+  \fig{Figure 5. Flood risk page, Uttarakhand 2013, day 3, Bay of Bengal 3\,\textdegree C warmer: 60 to 67
+  million people, and 4 to 5 states, at flood risk.}
 \end{minipage}
 
 \begin{multicols}{2}
@@ -161,61 +161,30 @@ The demo does not show saved results. It works without an internet connection.
 \item \textbf{Climate twin} (Figure~4). The same 3 real days give 2 universes. Universe B has a change to the last day:
   a shock of the organisers, or your own change. You select a region (or click on the map), a field and an amount.
   The page shows the 2 universes or their difference. A change of 0 gives the same forecast, bit for bit.
-\item \textbf{Flood risk} (Figure~5). The rain forecast becomes flood alerts for the states, with the number of
-  people in the alert area.
+\item \textbf{Flood risk} (Figure~5). A digital twin with 2 copies of the weather: \emph{Before} without a change
+  and \emph{After} with your change. Each press of $\rightarrow$ calculates 1 more day for both, up to 10 days.
 \end{itemize}
 The borders of India come from DataMeet and agree with the Survey of India. The twin answers a 10-day request in
 approximately 0.1\,s on a laptop CPU and uses 218\,MB of memory.
 
-\section{Impact use case: flood early warning}
-\textbf{User.} A state or district disaster management team. It needs to know: which states, how many days ahead,
-and how many people.
+\section{Impact use case: flood risk what-if}
+\textbf{User.} A state or district disaster management team. It needs to know: which states are at flood risk, how
+many people live there, and how a change to the weather changes this.
 
 \textbf{Method.} For each grid point, the module adds the rain of 3 days. It compares this value with the rain of
 3 days that is rare for that place and month (2005--2021). There are 3 levels: \emph{watch} (rarer than 97\%, more than
-40\,mm), \emph{warning} (99\%, 70\,mm) and \emph{severe} (99.7\%, 100\,mm). The forecast peaks of the twin become
-smaller after some days. Thus, the limits of the twin decrease for each day, so that a twin alert is as rare as a real
-alert. A state has the highest level that covers 10\% of its area. The population is WorldPop 2011 (CC BY 4.0).
+40\,mm), \emph{warning} (99\%, 70\,mm) and \emph{severe} (99.7\%, 100\,mm). A state is at risk when an alert covers
+10\% of its area. The population is WorldPop 2011 (CC BY 4.0).
 
-\textbf{What-if.} A shock changes the alerts too. On the Kerala 2018 window, a Bay of Bengal 3\,\textdegree C warmer
-changes the people in the alert area on day 3 from 84 to 69 million.
-
-\textbf{How early could the twin warn?} The page starts the twin 7, 6 \ldots\ 1 days before 4 past floods. It reads
-the level of the state on the day of the peak (Figure~6). The twin gave a warning 2 to 5 days before each peak.
-
-\begin{center}
-\begin{tikzpicture}[font=\scriptsize, x=5.4mm, y=4.6mm]
-  \foreach \lab [count=\r] in {Uttarakhand 2013, Jammu and Kashmir 2014, Kerala 2018, Kolhapur 2019}
-    \node[anchor=east] at (0.1,-\r) {\lab};
-  \foreach \lv [count=\c] in {0,0,3,3,2,3,3} \fill[lv\lv] (\c-0.45,-1-0.4) rectangle (\c+0.45,-1+0.4);
-  \foreach \lv [count=\c] in {0,0,2,2,1,3,3} \fill[lv\lv] (\c-0.45,-2-0.4) rectangle (\c+0.45,-2+0.4);
-  \foreach \lv [count=\c] in {0,0,0,0,2,3,3} \fill[lv\lv] (\c-0.45,-3-0.4) rectangle (\c+0.45,-3+0.4);
-  \foreach \lv [count=\c] in {0,0,1,3,3,3,3} \fill[lv\lv] (\c-0.45,-4-0.4) rectangle (\c+0.45,-4+0.4);
-  \foreach \d [count=\c] in {7,6,5,4,3,2,1} \node[color=muted] at (\c,-0.15) {\d};
-  \node[color=muted, anchor=west] at (7.6,-0.15) {days before};
-  \foreach \w [count=\r] in {5,2,3,4} \node[anchor=west] at (7.6,-\r) {\textbf{\w\ days}};
-  \foreach \t/\lv [count=\k] in {no alert/0, watch/1, warning/2, severe/3} {
-    \fill[lv\lv] ({-2.6+2.3*\k},-5.05) rectangle ({-2.25+2.3*\k},-4.75);
-    \node[anchor=west, color=muted] at ({-2.2+2.3*\k},-4.9) {\t}; }
-\end{tikzpicture}
-\fig{Figure 6. Alert level of the state on the peak day, for each start of the twin. Right: the first day from which
-each later start gave a warning. All 4 peaks were severe.}
-\end{center}
-
-\begin{center}\scriptsize
-\begin{tabular}{@{}lrrr@{}}\toprule
-Flood & Twin finds & ``Repeat yesterday'' & Warned \\\midrule
-Uttarakhand 2013 & 66\% & 46\% & 5 days \\
-Jammu and Kashmir 2014 & 39\% & 13\% & 2 days \\
-Kerala 2018 & 55\% & 31\% & 3 days \\
-Kolhapur 2019 & 63\% & 35\% & 4 days \\\bottomrule
-\end{tabular}
-\fig{Table 1. Part of the real alert area that the forecast also finds, days 1--3.}
-\end{center}
+\textbf{What-if.} The 2 copies start from the same 3 real days. You apply a change to \emph{After} at the start or on
+any later day: a shock of the organisers, or your own region, field and amount. The twin then calculates each next day
+from its own last 3 days, with 1 live request per copy. The page shows the people and the states at risk, before and
+after. On Uttarakhand 2013, a Bay of Bengal 3\,\textdegree C warmer changes day 3 from 60 to 67 million people, and
+from 4 to 5 states.
 
 \textbf{Limits.} The module uses rain only: no rivers, dams or drainage. A grid point is 110\,km wide, thus the alert
-is for a state, not for a town. The population is from 2011, thus the number of people today is larger. The 4 floods
-are in the training years of the final twin, thus the real lead times can be shorter.
+is for a state, not for a town. The population is from 2011, thus the number of people today is larger. The flood
+windows are in the training years of the final twin, thus the twin looks better on them than on a new flood.
 
 \end{multicols}
 \end{document}

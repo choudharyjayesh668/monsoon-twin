@@ -1,4 +1,4 @@
-# Files that must never be committed (see guidelines-rules.md).
+# Files that must never be committed.
 
 # R-10.4, R-1.5: environments, caches, compiled files, logs, secrets
 .venv/
@@ -45,3 +45,6 @@ weights/*.unroll*.pt
 
 /tmp/
 CLAUDE.md
+
+# Internal team rulebook: stays local
+guidelines-rules.md
