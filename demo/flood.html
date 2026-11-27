@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="vendor/leaflet-velocity.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
-<body class="app" data-page="flood">
+<body class="app evolve-on" data-page="flood">
 <header class="top">
   <a class="brand" href="index.html">Monsoon Twin</a>
   <div class="status" id="status" role="status"></div>
@@ -18,9 +18,8 @@
 
 <div class="toolbar" role="toolbar" aria-label="Map controls">
   <label class="keep">Weather window <select id="win"></select></label>
-  <button class="evobtn primary" id="ev-enter" type="button">Digital twin: evolve ▶</button>
   <span class="evo">
-    <label>Change for universe B
+    <label>Change
       <select id="change">
         <option value="warm_ocean">Warmer Bay of Bengal (+3 °C, +15% moisture)</option>
         <option value="monsoon_stall">Weaker Arabian Sea wind (−40%)</option>
@@ -33,19 +32,10 @@
       <label>What <select id="what"></select></label>
       <label>How much <span class="amount"><input type="range" id="amount" aria-label="Amount of the change"><output id="amount-out" for="amount"></output></span></label>
     </span>
-    <button class="evobtn" id="ev-apply" type="button">Apply to B now</button>
+    <button class="evobtn" id="ev-apply" type="button">Apply change now</button>
     <button class="evobtn primary" id="ev-play" type="button">▶ Evolve</button>
     <button class="evobtn" id="ev-reset" type="button">Reset</button>
-    <button class="evobtn" id="ev-exit" type="button">Back to flood map</button>
   </span>
-  <label>Shock
-    <select id="shock">
-      <option value="none">No shock</option>
-      <option value="warm_ocean">Warmer Bay of Bengal (+3 °C, +15% moisture)</option>
-      <option value="monsoon_stall">Weaker Arabian Sea wind (−40%)</option>
-      <option value="arabian_heat">Warmer Arabian Sea (+2.5 °C)</option>
-    </select>
-  </label>
   <input type="hidden" id="field" value="7">
   <div class="dayrow">
     <button class="step" id="prev" aria-label="Previous day" title="Previous day (←)">←</button>

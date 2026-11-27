@@ -274,8 +274,7 @@ function describe(states) {                                         // "flood wa
                   .map(g => `${ALERT[g[0].level]} for ${names(g.map(s => s.name))}`).join("; ");
 }
 function floodCaption(k) {
-  return `Twin: ${describe(state.stats[k].states)}. An alert compares the rain of 3 days with the rain `
-       + "that is rare for that place and month.";
+  return "";                                                        // the headline and the numbers say it
 }
 function floodHeadline(k) {
   const st = state.stats[k].states;
@@ -514,6 +513,7 @@ const Live = (() => {
   }
   $("live-again").onclick = () => check(false);
   $("live-nudge").onclick = () => check(true);
+  if (PAGE === "flood") toggle(false);                              // a one-line pill: the flood map needs the room
   return { collapse: () => toggle(false), add(c) { log.push({ ...c, at: new Date().toLocaleTimeString("en-GB") }); render(); } };
 })();
 
@@ -533,10 +533,10 @@ function floodLead() {        // a hit: the twin and the real rain both give a s
   for (const h of named.length ? named : all) if (!best || h.k > best.k) best = h;
   return { best, first, hits, total };
 }
-function showLead(k) {
+function showLead(k, force) {                                       // force: evolve.js, at day 10 of its run
   const card = $("leadcard");
   if (!card) return;
-  card.hidden = !(k === DAYS - 1 && state.view === "forecast" && state.lead);
+  card.hidden = !((force || (k === DAYS - 1 && state.view === "forecast")) && state.lead);
   if (card.hidden) return;
   const { best, first, hits, total } = state.lead, d = best && best.k + 1;
   card.innerHTML = `<button type="button" class="close" aria-label="Close" onclick="this.parentNode.hidden = true">×</button>`
@@ -613,7 +613,10 @@ document.addEventListener("keydown", e => {                         // the arrow
   if (e.key === "ArrowRight") { e.preventDefault(); stepBy(1); }
   if (e.key === "ArrowLeft") { e.preventDefault(); stepBy(-1); }
 });
-document.querySelectorAll(".seg button[data-view]").forEach(b => { b.onclick = () => setView(b.dataset.view); });
+document.querySelectorAll(".seg button[data-view]").forEach(b => { b.onclick = () => {   // a new view starts at the first day
+  if (glide) { cancelAnimationFrame(glide); glide = null; }
+  state.t = aim = 0; setView(b.dataset.view, true);
+}; });
 const tip = $("tip");
 let lit = null;
 function highlight(name) {                                          // outline the state under the cursor on both maps

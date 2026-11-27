@@ -40,6 +40,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def end_headers(self):                                    # always revalidate: a stale script breaks the new pages
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def log_message(self, *args):                             # keep the host's logs quiet
         pass
 

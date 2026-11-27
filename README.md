@@ -132,7 +132,7 @@ The demo is a website in `demo/`. Each forecast comes from the server at the tim
    ```
 2. Start the website:
    ```bash
-   python -m http.server 5173 -d demo
+   python demo/serve_demo.py --port 5173 --twin http://127.0.0.1:8000
    ```
 3. Open http://localhost:5173 in a web browser.
 
@@ -140,7 +140,7 @@ The demo has 5 pages:
 
 - **Forecast** (`index.html`) shows the twin forecast and the real weather side by side. The panel shows the skill of each day. The skill uses the method of the kit of the organisers.
 - **Climate twin** (`twin.html`) shows 2 universes from the same 3 real days. Universe A is as it was. Universe B has a change to the last day. You can select a change of the organisers, or make your own change: a region, a field and an amount. A change of 0 does not change the forecast.
-- **Flood risk** (`flood.html`) changes the rain forecast into flood alerts for each state. It shows the number of people in the alert area. After day 10 of each window, it shows how many days ahead the twin would have predicted the real flood. Its **Digital twin: evolve** mode runs two universes from the same start, one day per live `/simulate` call, for up to 30 days: universe A without a change, universe B with the changes you apply at any day.
+- **Flood risk** (`flood.html`) is the digital twin. Two copies of the weather start from the same real days and evolve one day per live `/simulate` call, for up to 30 days: **Before** without a change, **After** with the changes you apply at any day. Each day shows the flood alerts for each state and the number of people in the alert area. At day 10 the run stops and shows how many days before the real flood the twin's 10-day forecast warned.
 - **How it works** (`how.html`) tells how the twin and the pages work.
 - **Results** (`results.html`) shows the test results.
 

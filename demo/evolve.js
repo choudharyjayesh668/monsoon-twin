@@ -1,9 +1,10 @@
 "use strict";
-// Flood page, digital-twin mode: two universes that evolve one day at a time, live. Each day is one /simulate call per
-// universe (steps = 1); the twin reads its own last 3 days and calculates the next. Universe A gets no change; universe B
-// gets the changes you apply, at any day. Uses app.js (simulate, paint, P, state ...) and twin-builder.js (Builder).
+// Flood page: the digital twin. Two copies of the weather evolve one day at a time, live. Each day is one /simulate call
+// per copy (steps = 1); the twin reads its own last 3 days and calculates the next. "Before" gets no change; "After" gets
+// the changes you apply, at any day. At day 10 the run stops and shows how many days before the real flood the twin's
+// 10-day forecast from the same start warned. Uses app.js (simulate, paint, P, state ...) and twin-builder.js (Builder).
 const Evolve = (() => {
-  const MAX = 30, GAP_MS = 350, ev = { on: false, playing: false, n: 0, A: null, B: null, events: [] };
+  const MAX = 30, GAP_MS = 350, ev = { on: false, playing: false, n: 0, A: null, B: null, events: [], req: 0 };
   const STOP = { 7: STOPS.flood, 1: STOPS.rain, 0: STOPS.temp, 6: STOPS.speed, 5: STOPS.tcwv };
   const doy0 = () => { const [s, c] = W().doy_sincos; return Math.atan2(s, c) * 365 / (2 * Math.PI); };
   const sc = m => { const a = 2 * Math.PI * (doy0() + m) / 365; return [Math.sin(a), Math.cos(a)]; };   // m days after the last real day
@@ -30,14 +31,21 @@ const Evolve = (() => {
                                                                         null, 1, `evolve ${"AB"[k]}, day ${n}`)));
     ev.A.days.push(a.rollout[0]); ev.B.days.push(b.rollout[0]);
     score(ev.A, n); score(ev.B, n); ev.n = n;
+    $("status").textContent = "";                                 // the twin answers again
     render();
   }
   async function play() {
     if (ev.playing) { ev.playing = false; return; }
+    if (!state.lead) check().catch(() => {});                     // the twin was down when the page opened
     if (!ev.events.length) apply();                                // a different start for B, unless you gave one already
     ev.playing = true; button();
     try {
-      while (ev.playing && ev.n < MAX) { await tick(); await new Promise(r => setTimeout(r, GAP_MS)); }
+      $("leadcard").hidden = true;
+      while (ev.playing && ev.n < MAX) {
+        await tick();
+        if (ev.n === DAYS && state.lead) { ev.playing = false; showLead(DAYS - 1, true); break; }   // the flood check, at day 10
+        await new Promise(r => setTimeout(r, GAP_MS));
+      }
     } catch (e) { $("status").textContent = `Cannot reach the twin (${e.message}).`; }
     ev.playing = false; button();
   }
@@ -46,7 +54,12 @@ const Evolve = (() => {
 
   function reset() {
     ev.playing = false; ev.n = 0; ev.events = []; ev.A = universe(); ev.B = universe();
-    P[1].box.remove(); button(); render();
+    P[1].box.remove(); $("leadcard").hidden = true; button(); render(); check().catch(e => { $("status").textContent = `Cannot reach the twin (${e.message}).`; });
+  }
+  async function check() {     // the 10-day forecast from the same start, for the day-10 alert (floodLead in app.js)
+    const req = ++ev.req, base = await simulate(W(), null, DAYS, "10-day forecast");
+    if (req !== ev.req) return;
+    Object.assign(state, { base, shocked: null, flood: {} }); state.lead = floodLead();
   }
   function grid(u, ch) { return +ch === 7 ? (ev.n ? u.lv[ev.n] : u.lv[0] || zeros()) : layer(u.days[ev.n + 2], ch); }
   const zeros = () => Array.from({ length: NLAT }, () => new Array(NLON).fill(0));
@@ -58,20 +71,18 @@ const Evolve = (() => {
     const ev0 = ev.events.filter(e => e.n === n).map(e => e.text);
     $("eyebrow").textContent = n ? `Digital twin · day ${n} of ${MAX} · ${dateText(dateOf(n).toISOString().slice(0, 10))}`
                                  : "Digital twin · start: the last real day";
-    $("headline").textContent = n ? `Universe B: ${describe(ev.B.alerts[n])}. Universe A: ${describe(ev.A.alerts[n])}.`
+    $("headline").textContent = n ? `After: ${describe(ev.B.alerts[n])}. Before: ${describe(ev.A.alerts[n])}.`
                                   : "Press Evolve. The twin calculates one day at a time, from its own last 3 days.";
-    $("captext").textContent = "Each day is 2 live /simulate calls of 1 day (see the LIVE log). Universe A gets no change. "
-      + "Universe B gets your changes, at the days marked ▲. Apply a new change at any day."
-      + (ev0.length ? ` Today: ${ev0.join("; ")}.` : "");
-    $("stats").innerHTML = n ? stat("People in the alert area", `${persons(ev.A.people[n])} → ${persons(ev.B.people[n])}`, "universe A → B · 2011 population")
-      + stat("States under an alert", `${ev.A.alerts[n].length} → ${ev.B.alerts[n].length}`, "universe A → B")
-      + stat("Changes to B", String(ev.events.length), ev.events.map(e => `▲ day ${e.n}`).join(", ") || "none") : stat("Changes to B", String(ev.events.length), ev.events.map(e => e.text).join("; ") || "none yet");
-    $("tlhead").textContent = "People in universe B's flood-alert area, by day";
-    const top = Math.max(1, ...ev.B.people.slice(1));
+    $("captext").textContent = ev0.length ? `▲ Change applied today: ${ev0.join("; ")}.` : "";
+    $("stats").innerHTML = n ? stat("People in the alert area", `${persons(ev.A.people[n])} → ${persons(ev.B.people[n])}`, "before → after · 2011 population")
+      + stat("States under an alert", `${ev.A.alerts[n].length} → ${ev.B.alerts[n].length}`, "before → after")
+      + stat("Changes", String(ev.events.length), ev.events.map(e => `▲ day ${e.n}`).join(", ") || "none") : stat("Changes", String(ev.events.length), ev.events.map(e => e.text).join("; ") || "none yet");
+    $("tlhead").textContent = "After: states under a flood alert, by day";
+    const top = Math.max(1, ...ev.B.alerts.slice(1).map(a => a.length));
     $("timeline").replaceChildren(...Array.from({ length: n }, (_, k) => {
       const d = k + 1, b = document.createElement("span"), mark = ev.events.some(e => e.n === k) ? "▲" : "";
-      b.className = "chip"; b.title = `Day ${d}: A ${persons(ev.A.people[d])}, B ${persons(ev.B.people[d])}`;
-      b.innerHTML = `<span class="track"><span class="bar" style="height:${Math.max(3, 28 * ev.B.people[d] / top)}px"></span></span>`
+      b.className = "chip"; b.title = `Day ${d}: people in the alert area, before ${persons(ev.A.people[d])}, after ${persons(ev.B.people[d])}`;
+      b.innerHTML = `<span class="track"><span class="bar" style="height:${Math.max(3, 28 * ev.B.alerts[d].length / top)}px"></span></span>`
         + `<span class="val">${mark}${ev.B.alerts[d].length}</span><span class="d">Day ${d}</span>`;
       return b;
     }).slice(-10));
@@ -79,19 +90,15 @@ const Evolve = (() => {
 
   function enter() {
     ev.on = true; document.body.classList.add("evolve-on");
-    state.view = "universes"; $("wrap").className = "mapwrap two"; P.forEach(p => { p.map.invalidateSize(); p.marks.clearLayers(); });
-    $("title0").textContent = "Universe A: no change"; $("title1").textContent = "Universe B: with your changes";
-    $("leadcard").hidden = true; Live.collapse(); fit(); reset();
+    state.view = "universes"; $("wrap").className = "mapwrap two"; P.forEach(p => { p.map.invalidateSize(); p.marks.clearLayers(); p.box.remove(); });
+    $("title0").textContent = "Before: no change"; $("title1").textContent = "After: with your change";
+    $("leadcard").hidden = true; Live.collapse(); reset();
+    requestAnimationFrame(() => { P.forEach(p => p.map.invalidateSize()); fit(); });   // after the 2-map layout settles
   }
-  function leave() {
-    ev.playing = false; ev.on = false; document.body.classList.remove("evolve-on");
-    $("field").value = 7; state.view = "forecast"; P[1].box.remove(); run();
-  }
-  $("ev-enter").onclick = enter;
-  $("ev-exit").onclick = leave;
   $("ev-play").onclick = play;
   $("ev-apply").onclick = apply;
   $("ev-reset").onclick = reset;
   $("win").addEventListener("change", () => { if (ev.on) reset(); });
+  enter();                                                          // the flood page is the twin only
   return { on: () => ev.on };
 })();
