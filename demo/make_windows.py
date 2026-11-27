@@ -28,7 +28,7 @@ WINDOWS = [  # (last input day, label): one window for each kind of hidden test 
     (dt.date(2013, 6, 14), "Flood: Uttarakhand, June 2013"),
     (dt.date(2014, 9, 2), "Flood: Jammu and Kashmir, September 2014"),
     (dt.date(2018, 8, 13), "Flood: Kerala, August 2018"),
-    (dt.date(2019, 8, 3), "Flood: Kolhapur and Sangli, August 2019"),
+    (dt.date(2019, 8, 3), "Flood: Kolhapur and Sangli, Maharashtra, August 2019"),
 ]
 DAYS = 10                                                   # the twin's 10-day forecast, compared day by day
 
@@ -51,24 +51,3 @@ Path(__file__).with_name("windows.js").write_text(
     "window.LAND = " + json.dumps((static[0] > 0.5).astype(int).tolist(), separators=(",", ":")) + ";\n")
 print("wrote", len(out), "windows")
 
-# Early-warning ladders for the flood page (flood-ladder.js): the real days up to each flood's peak, so the twin can be
-# started 7, 6 ... 1 days before it. Peak: the day of the largest 3-day rain in the state.
-LADDERS = [  # (peak day, state as the DataMeet map names it, label)
-    (dt.date(2013, 6, 17), "Uttarakhand", "Uttarakhand (Kedarnath), June 2013"),
-    (dt.date(2014, 9, 5), "Jammu & Kashmir", "Jammu and Kashmir, September 2014"),
-    (dt.date(2018, 8, 16), "Kerala", "Kerala, August 2018"),
-    (dt.date(2019, 8, 6), "Maharashtra", "Kolhapur and Sangli, Maharashtra, August 2019"),
-]
-LEADS = 7                                                    # start the twin up to 7 days before the peak
-ladders = []
-for peak, st, label in LADDERS:
-    i = int(np.where(days == peak)[0][0])
-    span = [peak - dt.timedelta(days=n) for n in range(LEADS + 2, -1, -1)]          # peak-9 .. peak
-    a = [2 * math.pi * d.timetuple().tm_yday / 365 for d in span]
-    ladders.append({"label": label, "state": st, "peak": peak.isoformat(),
-                    "days": np.round(X[i - LEADS - 2:i + 1].astype("f8"), 2).tolist(),
-                    "sincos": [[round(math.sin(x), 6), round(math.cos(x), 6)] for x in a]})
-Path(__file__).with_name("data").joinpath("ladders.js").write_text(
-    "// Real days up to each flood's peak (oldest first, the peak last), for the early-warning ladder. Physical units.\n"
-    "window.LADDERS = " + json.dumps(ladders, separators=(",", ":")) + ";\n")
-print("wrote", len(ladders), "ladders")

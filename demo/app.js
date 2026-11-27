@@ -434,7 +434,7 @@ function setDay(k, force) {
   shownDay = k; $("daylabel").textContent = `Day ${k + 1} of ${DAYS}`;
   $("prev").disabled = k === 0; $("next").disabled = k === DAYS - 1;
   const card = $("dock"); card.classList.remove("in"); void card.offsetWidth; card.classList.add("in");
-  renderPanel(k); updateWind(k); updateMarks(k);
+  renderPanel(k); updateWind(k); updateMarks(k); showLead(k);
 }
 
 // ---- running the twin ------------------------------------------------------------------------------------
@@ -453,20 +453,111 @@ function shockDelta(spec, last) {                                   // the pertu
 }
 // The change of this page: none on the forecast page, a preset on the flood page, the builder on the twin page.
 const specNow = () => (PAGE === "twin" ? Builder.spec() : PAGE === "flood" && $("shock").value !== "none" ? PRESETS[$("shock").value] : null);
-async function simulate(w, perturbation) {
+async function simulate(w, perturbation, steps = DAYS, why = "") {
+  const t0 = performance.now();
   const r = await fetch(SERVER + "/simulate", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ init_states: w.init_states, doy_sincos: w.doy_sincos, steps: DAYS, perturbation }) });
+    body: JSON.stringify({ init_states: w.init_states, doy_sincos: w.doy_sincos, steps, perturbation }) });
   if (!r.ok) throw new Error("the server answered " + r.status);
-  return r.json();
+  const text = await r.text(), out = JSON.parse(text);
+  Live.add({ steps, why: why || (perturbation ? "with a change" : "no change"), server: out.inference_ms,
+             trip: performance.now() - t0, bytes: text.length, fp: fingerprint(out.rollout) });
+  return out;
 }
+
+// ---- proof that the maps are calculated now: every /simulate call, with a fingerprint of its output ---------
+function fingerprint(rollout) {                                     // FNV-1a over the numbers: same output, same print
+  const s = JSON.stringify(rollout); let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+const Live = (() => {
+  const log = [], card = document.createElement("section");
+  card.className = "card live"; card.setAttribute("aria-label", "Live calls to the twin");
+  card.innerHTML = `<div class="livehead"><span class="dot" aria-hidden="true"></span><b>LIVE</b><span id="live-sum">waiting for the twin…</span>
+      <button type="button" id="live-toggle" aria-expanded="true">Hide</button></div>
+    <div id="live-body"><p class="livenote">Nothing on this page is pre-rendered. Each map is the answer to a <code>POST /simulate</code>
+      that this page sends now to the twin (<code>serve.py</code>). Stop the server and the maps stop.</p>
+    <table><thead><tr><th>Time</th><th>Call</th><th class="num">Days</th><th class="num">Server</th><th class="num">Size</th><th>Output print</th></tr></thead>
+      <tbody id="live-rows"></tbody></table>
+    <div class="livebtns"><button type="button" id="live-again">Run again</button><button type="button" id="live-nudge">Random nudge</button></div>
+    <p class="livenote" id="live-verdict">“Run again” sends the same input: the same print shows the twin is deterministic.
+      “Random nudge” changes the start by a random amount: a new print shows the answer is calculated, not stored.</p></div>`;
+  $("wrap").append(card);
+  const kb = n => (n / 1024 > 999 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " kB");
+  function render() {
+    const last = log[log.length - 1];
+    $("live-sum").textContent = `${log.length} ${log.length === 1 ? "call" : "calls"} · last ${last.server.toFixed(0)} ms on the server · print ${last.fp}`;
+    $("live-rows").innerHTML = log.slice(-6).reverse().map(c => `<tr><td>${c.at}</td><td>${c.why}</td><td class="num">${c.steps}</td>`
+      + `<td class="num">${c.server.toFixed(0)} ms</td><td class="num">${kb(c.bytes)}</td><td><code>${c.fp}</code></td></tr>`).join("");
+  }
+  const toggle = (open = $("live-body").hidden) => {
+    $("live-body").hidden = !open;
+    $("live-toggle").textContent = open ? "Hide" : "Show proof"; $("live-toggle").setAttribute("aria-expanded", open);
+  };
+  $("live-toggle").onclick = () => toggle();
+  async function check(nudge) {
+    const w = W(), before = log.filter(c => c.why === "forecast" || c.why === "same input again").pop();
+    let pert = null;
+    if (nudge) {                                                    // a random warm or cold patch of 0.5..2 K, 6 x 6 cells
+      const i0 = Math.floor(Math.random() * 26), j0 = Math.floor(Math.random() * 30), dk = (0.5 + 1.5 * Math.random()) * (Math.random() < 0.5 ? -1 : 1);
+      pert = Array.from({ length: 6 }, (_, c) => Array.from({ length: NLAT }, (_, i) => Array.from({ length: NLON },
+        (_, j) => (c === 0 && i >= i0 && i < i0 + 6 && j >= j0 && j < j0 + 6 ? dk : 0))));
+    }
+    try {
+      await simulate(w, pert, DAYS, nudge ? "random nudge" : "same input again");
+      const now = log[log.length - 1];
+      $("live-verdict").textContent = nudge
+        ? `Random nudge → new print ${now.fp}. No file can hold the answer to a change you made a second ago.`
+        : before && before.fp === now.fp ? `Same input again → same print ${now.fp}, calculated again in ${now.server.toFixed(0)} ms. The twin is deterministic.`
+        : `Calculated again → print ${now.fp}.`;
+    } catch (e) { $("live-verdict").textContent = `Cannot reach the twin (${e.message}).`; }
+  }
+  $("live-again").onclick = () => check(false);
+  $("live-nudge").onclick = () => check(true);
+  return { collapse: () => toggle(false), add(c) { log.push({ ...c, at: new Date().toLocaleTimeString("en-GB") }); render(); } };
+})();
+
+// ---- flood page: how many days ahead the twin warned of the real flood of this window -----------------------
+function floodLead() {        // a hit: the twin and the real rain both give a state a warning or higher on the same day
+  const real = floodOf("actual"), twin = floodOf("base");
+  let best = null, first = null, hits = 0, total = 0; const all = [];
+  real.forEach((g, k) => {
+    const tw = FloodRisk.stateAlerts(twin[k], cellStates());
+    FloodRisk.stateAlerts(g, cellStates()).filter(s => s.level >= 2).forEach(s => {
+      total++; first ??= { k, name: s.name };
+      const t = tw.find(x => x.name === s.name);
+      if (t && t.level >= 2) { hits++; all.push({ k, name: s.name }); }
+    });
+  });
+  const named = all.filter(h => W().label.includes(h.name.split(" ")[0]));     // the state the flood window is named after
+  for (const h of named.length ? named : all) if (!best || h.k > best.k) best = h;
+  return { best, first, hits, total };
+}
+function showLead(k) {
+  const card = $("leadcard");
+  if (!card) return;
+  card.hidden = !(k === DAYS - 1 && state.view === "forecast" && state.lead);
+  if (card.hidden) return;
+  const { best, first, hits, total } = state.lead, d = best && best.k + 1;
+  card.innerHTML = `<button type="button" class="close" aria-label="Close" onclick="this.parentNode.hidden = true">×</button>`
+    + `<div class="eyebrow">Flood alert · 10-day run complete</div>` + (best
+    ? `<div class="big">${d} ${d === 1 ? "day" : "days"} before</div><p>Our model would have predicted the flood in <b>${best.name}</b>
+       ${d} ${d === 1 ? "day" : "days"} before it came.</p><p class="n">${hits} of ${total} real state flood warnings in these 10 days predicted.</p>`
+    : first ? `<div class="big miss">Not predicted</div><p>The flood in <b>${first.name}</b> came ${when(first.k)}. Our model did not predict it.</p>`
+    : `<div class="big none">No flood</div><p>No state had a real flood warning in these 10 days.</p>`);
+}
+if (PAGE === "flood") $("wrap").insertAdjacentHTML("beforeend", `<section class="card leadcard" id="leadcard" aria-live="polite" hidden></section>`);
+
 async function run() {
+  if (document.body.classList.contains("evolve-on")) return;       // the digital-twin mode (evolve.js) owns the maps
   const req = ++state.req, w = W(), spec = specNow();
   $("status").textContent = "The twin calculates 10 days…";
   try {
-    const base = await simulate(w, null);
-    const shocked = spec ? await simulate(w, shockDelta(spec, w.init_states[2])) : null;
+    const base = await simulate(w, null, DAYS, "forecast");
+    const shocked = spec ? await simulate(w, shockDelta(spec, w.init_states[2]), DAYS, "with the change") : null;
     if (req !== state.req) return;                                  // a newer request started meanwhile
     Object.assign(state, { base, shocked, spec, flood: {} });
+    if (PAGE === "flood") state.lead = floodLead();
     $("status").textContent = `Live from the twin · ${base.inference_ms.toFixed(0)} ms`;
     P.forEach(p => {
       if (!spec) p.box.remove();
@@ -493,6 +584,7 @@ function setView(v, force) {
 // ---- stepping: you move one day at a time; the maps glide into the next day ---------------------------------
 let glide = null, aim = 0;                                          // aim: the day the last request asked for
 function goTo(k, smooth) {
+  if (document.body.classList.contains("evolve-on")) return;
   k = aim = Math.max(0, Math.min(DAYS - 1, k));
   if (glide) { cancelAnimationFrame(glide); glide = null; }
   const from = state.t;

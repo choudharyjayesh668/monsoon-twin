@@ -140,7 +140,7 @@ The demo has 5 pages:
 
 - **Forecast** (`index.html`) shows the twin forecast and the real weather side by side. The panel shows the skill of each day. The skill uses the method of the kit of the organisers.
 - **Climate twin** (`twin.html`) shows 2 universes from the same 3 real days. Universe A is as it was. Universe B has a change to the last day. You can select a change of the organisers, or make your own change: a region, a field and an amount. A change of 0 does not change the forecast.
-- **Flood risk** (`flood.html`) changes the rain forecast into flood alerts for each state. It shows the number of people in the alert area. Its **Early warning** tab starts the twin 7 to 1 days before 4 past floods.
+- **Flood risk** (`flood.html`) changes the rain forecast into flood alerts for each state. It shows the number of people in the alert area. After day 10 of each window, it shows how many days ahead the twin would have predicted the real flood. Its **Digital twin: evolve** mode runs two universes from the same start, one day per live `/simulate` call, for up to 30 days: universe A without a change, universe B with the changes you apply at any day.
 - **How it works** (`how.html`) tells how the twin and the pages work.
 - **Results** (`results.html`) shows the test results.
 
@@ -160,7 +160,7 @@ The small map page in `dashboard/` also uses the server. To use it, start the se
 | Script | Output | Requirement |
 |---|---|---|
 | `demo/make_map.py` | The border files | The DataMeet and Natural Earth files |
-| `demo/make_windows.py` | The 9 weather windows and the early-warning days (`demo/data/ladders.js`) | The data file and the kit of the organisers |
+| `demo/make_windows.py` | The 9 weather windows | The data file and the kit of the organisers |
 | `demo/make_flood.py` | The flood limits (`demo/data/flood.js`) | The data file. It runs the twin for approximately 3 minutes. |
 | `demo/make_population.py <file>` | The population grid (`demo/data/population.js`) | `rasterio` (BSD-3) and the WorldPop file |
 

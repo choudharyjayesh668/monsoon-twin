@@ -47,7 +47,6 @@ input[type=range] { accent-color: var(--ink); width: 150px; }
 .scores:hover { border-color: #c7c7cc; }
 .tabs { grid-template-columns: repeat(2, auto); }
 .tabs button[aria-selected="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .1); font-weight: 500; }
-.ladder-on .toolbar > :not(.tabs) { display: none; }      /* the map controls do nothing on the ladder tab */
 .tabpanel { position: absolute; inset: 0; z-index: 1001; overflow: auto; background: var(--bg); }   /* above Leaflet's controls */
 [data-page="flood"] #win { width: 250px; } [data-page="flood"] #shock { width: 230px; }   /* one toolbar row with the tabs */
 .tabpanel .inner { max-width: 1100px; margin: 0 auto; padding: 32px 24px 48px; }
@@ -178,3 +177,40 @@ th { font-weight: 500; color: var(--muted); font-size: 13px; }
   .legend { width: calc(100% - 24px); } .dock { bottom: 12px; padding: 12px 14px; } .stats { gap: 6px 18px; }
   .stat .v { font-size: 18px; } .dock .headline { font-size: 18px; } .dock .caption { font-size: 13px; } .tip { display: none; }
 }
+
+/* proof that the maps are live: the calls to /simulate */
+.live { right: 56px; top: 12px; width: min(440px, calc(100% - 80px)); padding: 10px 14px; font-size: 12px; }
+.livehead { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.livehead b { color: #0b7a3e; letter-spacing: .06em; }
+.livehead #live-sum { color: var(--muted); font-variant-numeric: tabular-nums; }
+.livehead button, .livebtns button { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+.livehead button { margin-left: auto; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #1faa59; box-shadow: 0 0 0 0 rgba(31, 170, 89, .6); animation: pulse 1.6s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(31, 170, 89, 0); } 100% { box-shadow: 0 0 0 0 rgba(31, 170, 89, 0); } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+.livenote { margin: 6px 0; color: #48484a; line-height: 1.4; }
+.live table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.live th, .live td { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.live th { font-weight: 500; color: var(--muted); }
+.live .num { text-align: right; }
+.livebtns { display: flex; gap: 8px; margin-top: 8px; }
+
+/* flood page, day 10: how far ahead the twin warned */
+.leadcard { left: 50%; top: 50%; transform: translate(-50%, -70%); width: min(520px, calc(100% - 32px)); padding: 18px 22px; text-align: center;
+  border: 2px solid #b3261e; }
+.leadcard .big { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; color: #b3261e; line-height: 1.1; margin: 6px 0; }
+.leadcard .big.miss, .leadcard .big.none { color: var(--muted); }
+.leadcard p { margin: 0; font-size: 15px; line-height: 1.45; }
+.leadcard p.n { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.leadcard .close { position: absolute; top: 8px; right: 10px; width: 30px; height: 30px; border-radius: 50%; border: 0;
+  background: var(--soft); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
+
+/* flood page, digital-twin mode (evolve.js) */
+.evo { display: none; }
+.evolve-on .evo { display: contents; }
+.evolve-on .toolbar > :not(.evo):not(.keep) { display: none; }
+.evobtn { font: inherit; font-size: 14px; min-height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); cursor: pointer; }
+.evobtn.primary { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 500; }
+.evobtn:disabled { opacity: .4; cursor: default; }
