@@ -33,7 +33,11 @@
       <label>How much <span class="amount"><input type="range" id="amount" aria-label="Amount of the change"><output id="amount-out" for="amount"></output></span></label>
     </span>
     <button class="evobtn" id="ev-apply" type="button">Apply change now</button>
-    <button class="evobtn primary" id="ev-play" type="button">▶ Evolve</button>
+    <div class="dayrow">
+      <button class="step" id="ev-prev" type="button" aria-label="Previous day" title="Previous day (←)">←</button>
+      <span class="daylabel" id="ev-day" aria-live="polite">Start</span>
+      <button class="step" id="ev-next" type="button" aria-label="Next day: the twin calculates it" title="Next day (→)">→</button>
+    </div>
     <button class="evobtn" id="ev-reset" type="button">Reset</button>
   </span>
   <input type="hidden" id="field" value="7">

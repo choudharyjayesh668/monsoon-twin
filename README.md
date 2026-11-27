@@ -140,7 +140,7 @@ The demo has 5 pages:
 
 - **Forecast** (`index.html`) shows the twin forecast and the real weather side by side. The panel shows the skill of each day. The skill uses the method of the kit of the organisers.
 - **Climate twin** (`twin.html`) shows 2 universes from the same 3 real days. Universe A is as it was. Universe B has a change to the last day. You can select a change of the organisers, or make your own change: a region, a field and an amount. A change of 0 does not change the forecast.
-- **Flood risk** (`flood.html`) is the digital twin. Two copies of the weather start from the same real days and evolve one day per live `/simulate` call, for up to 30 days: **Before** without a change, **After** with the changes you apply at any day. Each day shows the flood alerts for each state and the number of people in the alert area. At day 10 the run stops and shows how many days before the real flood the twin's 10-day forecast warned.
+- **Flood risk** (`flood.html`) is the digital twin. Two copies of the weather start from the same real days and evolve one day per live `/simulate` call, for up to 30 days: **Before** without a change, **After** with the changes you apply at any day. Press → to calculate the next day and ← to go back. Each day shows the people and the states at flood risk, before and after.
 - **How it works** (`how.html`) tells how the twin and the pages work.
 - **Results** (`results.html`) shows the test results.
 
